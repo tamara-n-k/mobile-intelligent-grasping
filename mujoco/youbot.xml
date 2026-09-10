@@ -1,0 +1,140 @@
+<mujoco model="youbot">
+  <compiler meshdir=".." balanceinertia="true" angle="radian"/>
+  
+  <default>
+    <!-- Visual geometries: visible in Group 1, default robot grey/orange material -->
+    <default class="visual">
+      <geom group="1" type="mesh" contype="0" conaffinity="0" rgba="0.2 0.2 0.2 1"/>
+    </default>
+    <!-- Collision geometries: hidden in Group 3, used only for physics -->
+    <default class="collision">
+      <geom group="3" type="mesh" rgba="0.8 0.3 0.1 0"/>
+    </default>
+  </default>
+  
+  <asset>
+    <!-- Detailed meshes: full-resolution geometry, used for visual geoms only -->
+    <mesh name="base" content_type="model/obj" file="youbot_description/meshes/youbot_base/base.obj"/>
+    <mesh name="plate" content_type="model/obj" file="youbot_description/meshes/youbot_plate/plate.obj"/>
+    <mesh name="arm0" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm0.obj"/>
+    <mesh name="arm1" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm1.obj"/>
+    <mesh name="arm2" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm2.obj"/>
+    <mesh name="arm3" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm3.obj"/>
+    <mesh name="arm4" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm4.obj"/>
+    <mesh name="arm5" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm5.obj"/>
+    <mesh name="palm" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/palm.obj"/>
+    <mesh name="finger" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/finger.obj"/>
+    <mesh name="hokuyo" content_type="model/obj" file="youbot_description/meshes/sensors/hokuyo.obj"/>
+
+    <!-- Convex meshes: decimated collision hulls, used for collision geoms only -->
+    <mesh name="base_convex" content_type="model/obj" file="youbot_description/meshes/youbot_base/base_convex.obj"/>
+    <mesh name="plate_convex" content_type="model/obj" file="youbot_description/meshes/youbot_plate/plate_convex.obj"/>
+    <mesh name="arm0_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm0_convex.obj"/>
+    <mesh name="arm1_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm1_convex.obj"/>
+    <mesh name="arm2_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm2_convex.obj"/>
+    <mesh name="arm3_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm3_convex.obj"/>
+    <mesh name="arm4_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm4_convex.obj"/>
+    <mesh name="arm5_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm5_convex.obj"/>
+    <mesh name="palm_convex" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/palm_convex.obj"/>
+    <mesh name="finger_convex" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/finger_convex.obj"/>
+    <mesh name="hokuyo_convex" content_type="model/obj" file="youbot_description/meshes/sensors/hokuyo_convex.obj"/>
+  </asset>
+
+  <worldbody>
+    <!-- base_link: the whole chassis was previously bolted directly to the world
+         (no body/joint of its own), which also placed the wheels ~0.0815m below
+         the floor. Wrapping it in a body with a freejoint and lifting it by the
+         wheel radius + caster drop lets the robot actually rest on the ground. -->
+    <body name="base_link" pos="0 0 0.0815">
+      <freejoint/>
+      <geom class="visual" rgba="0.3 0.3 0.3 1" mesh="base"/>
+      <geom class="collision" mesh="base_convex"/>
+      <geom class="visual" pos="-0.159 0 0.046" quat="1 0 0 0" mesh="plate"/>
+      <geom class="collision" pos="-0.159 0 0.046" quat="1 0 0 0" mesh="plate_convex"/>
+      <geom class="visual" pos="0.143 0 0.046" quat="1 0 0 0" rgba="0.3 0.3 0.3 1" mesh="arm0"/>
+      <geom class="collision" pos="0.143 0 0.046" quat="1 0 0 0" mesh="arm0_convex"/>
+      <geom class="visual" pos="0.3 0 -0.03" quat="1 0 0 0" mesh="hokuyo"/>
+      <geom class="collision" pos="0.3 0 -0.03" quat="1 0 0 0" mesh="hokuyo_convex"/>
+      <body name="caster_link_fl" pos="0.228 0.158 -0.034">
+        <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="0.1" diaginertia="0.0153925 0.0125446 0.0114568"/>
+        <joint name="caster_joint_fl" actuatorfrcrange="-30 30" damping="1" frictionloss="1"/>
+        <body name="wheel_link_fl">
+          <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="1.4" diaginertia="0.0153925 0.0125446 0.0114568"/>
+          <joint name="wheel_joint_fl" actuatorfrcrange="-30 30" damping="1" frictionloss="1" axis="0 1 0"/>
+          <geom size="0.0475 0.02375" quat="0.707107 0.707107 0 0" type="cylinder" rgba="1 0.4 0 1"/>
+        </body>
+      </body>
+      <body name="caster_link_fr" pos="0.228 -0.158 -0.034">
+        <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="0.1" diaginertia="0.0153925 0.0125446 0.0114568"/>
+        <joint name="caster_joint_fr" actuatorfrcrange="-30 30" damping="1" frictionloss="1"/>
+        <body name="wheel_link_fr">
+          <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="1.4" diaginertia="0.0153925 0.0125446 0.0114568"/>
+          <joint name="wheel_joint_fr" actuatorfrcrange="-30 30" damping="1" frictionloss="1" axis="0 1 0"/>
+          <geom size="0.0475 0.02375" quat="0.707107 0.707107 0 0" type="cylinder" rgba="1 0.4 0 1"/>
+        </body>
+      </body>
+      <body name="caster_link_bl" pos="-0.228 0.158 -0.034">
+        <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="0.1" diaginertia="0.0153925 0.0125446 0.0114568"/>
+        <joint name="caster_joint_bl" actuatorfrcrange="-30 30" damping="1" frictionloss="1"/>
+        <body name="wheel_link_bl">
+          <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="1.4" diaginertia="0.0153925 0.0125446 0.0114568"/>
+          <joint name="wheel_joint_bl" actuatorfrcrange="-30 30" damping="1" frictionloss="1" axis="0 1 0"/>
+          <geom size="0.0475 0.02375" quat="0.707107 0.707107 0 0" type="cylinder" rgba="1 0.4 0 1"/>
+        </body>
+      </body>
+      <body name="caster_link_br" pos="-0.228 -0.158 -0.034">
+        <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="0.1" diaginertia="0.0153925 0.0125446 0.0114568"/>
+        <joint name="caster_joint_br" actuatorfrcrange="-30 30" damping="1" frictionloss="1"/>
+        <body name="wheel_link_br">
+          <inertial pos="0 0 0" quat="0.589921 -0.182261 -0.205712 0.759247" mass="1.4" diaginertia="0.0153925 0.0125446 0.0114568"/>
+          <joint name="wheel_joint_br" actuatorfrcrange="-30 30" damping="1" frictionloss="1" axis="0 1 0"/>
+          <geom size="0.0475 0.02375" quat="0.707107 0.707107 0 0" type="cylinder" rgba="1 0.4 0 1"/>
+        </body>
+      </body>
+      <body name="arm_link_1" pos="0.167 0 0.142" quat="0.0871557 0 0 0.996195">
+        <inertial pos="0.01489 0.00213 0.00213" quat="0.5 0.5 0.5 0.5" mass="1.39" diaginertia="0.0060091 0.0058821 0.0029525"/>
+        <joint name="arm_joint_1" range="0 5.89921" actuatorfrcrange="-9.5 9.5" damping="1" frictionloss="0.5" axis="0 0 -1"/>
+        <geom class="visual" rgba="1 0.4 0 1" mesh="arm1"/>
+        <geom class="collision" mesh="arm1_convex"/>
+        <body name="arm_link_2" pos="0.033 0 0.019" quat="0.843391 0 -0.5373 0">
+          <inertial pos="0.01053 -0.0307 0.08597" quat="0.5 0.5 -0.5 0.5" mass="1.318" diaginertia="0.0031631 0.0031145 0.0005843"/>
+          <joint name="arm_joint_2" range="0 2.70526" actuatorfrcrange="-9.5 9.5" damping="1" frictionloss="0.5" axis="0 1 0"/>
+          <geom class="visual" pos="0 -0.032 0.078" mesh="arm2"/>
+          <geom class="collision" pos="0 -0.032 0.078" mesh="arm2_convex"/>
+          <body name="arm_link_3" pos="0 0 0.155" quat="0.292372 0 0.956305 0">
+            <inertial pos="0.0001 0.0207 0.07107" quat="0.5 0.5 -0.5 0.5" mass="0.821" diaginertia="0.0018468 0.00172767 0.00041967"/>
+            <joint name="arm_joint_3" range="-5.18363 0" actuatorfrcrange="-6 6" damping="1" frictionloss="0.5" axis="0 1 0"/>
+            <geom class="visual" pos="0 0.028 0.079" quat="1 0 0 0" rgba="1 0.4 0 1" mesh="arm3"/>
+            <geom class="collision" pos="0 0.028 0.079" quat="1 0 0 0" mesh="arm3_convex"/>
+            <body name="arm_link_4" pos="0 0 0.135" quat="0.625923 0 -0.779884 0">
+              <inertial pos="0.00011 -0.02 0.05019" quat="0.707107 0 0 0.707107" mass="0.769" diaginertia="0.0010573 0.0006764 0.000661"/>
+              <joint name="arm_joint_4" range="0 3.57792" actuatorfrcrange="-2 2" damping="1" frictionloss="0.5" axis="0 1 0"/>
+              <geom class="visual" pos="0 -0.01 0.029" rgba="1 0.4 0 1" mesh="arm4"/>
+              <geom class="collision" pos="0 -0.01 0.029" mesh="arm4_convex"/>
+              <body name="arm_link_5" pos="-0.002 0 0.13" quat="0.108867 0 0 0.994056">
+                <inertial pos="0 0.00100388 -0.0146915" quat="0.999973 0.00728593 0 0" mass="0.787" diaginertia="0.0102182 0.010185 0.010069"/>
+                <joint name="arm_joint_5" range="0 5.84685" actuatorfrcrange="-1 1" damping="0.5" frictionloss="0.5" axis="0 0 -1"/>
+                <geom class="visual" pos="0.003 0 -0.034" quat="1 0 0 0" rgba="0.3 0.3 0.3 1" mesh="arm5"/>
+                <geom class="collision" pos="0.003 0 -0.034" quat="1 0 0 0" mesh="arm5_convex"/>
+                <geom class="visual" mesh="palm"/>
+                <geom class="collision" mesh="palm_convex"/>
+                <body name="gripper_finger_link_l" pos="0.004 0.008 0.046" quat="0 0 0 1">
+                  <inertial pos="0 -0.001 0" mass="0.01" diaginertia="0.01 0.01 0.01"/>
+                  <joint name="gripper_finger_joint_l" type="slide" range="0 0.0115" actuatorfrcrange="-1 1" damping="1" frictionloss="1" axis="0 -1 0"/>
+                  <geom class="visual" mesh="finger"/>
+                  <geom class="collision" mesh="finger_convex"/>
+                </body>
+                <body name="gripper_finger_link_r" pos="0.004 -0.008 0.046">
+                  <inertial pos="0 -0.001 0" mass="0.01" diaginertia="0.01 0.01 0.01"/>
+                  <joint name="gripper_finger_joint_r" type="slide" range="0 0.0115" actuatorfrcrange="-1 1" damping="1" frictionloss="1" axis="0 -1 0"/>
+                  <geom class="visual" mesh="finger"/>
+                  <geom class="collision" mesh="finger_convex"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

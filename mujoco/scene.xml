@@ -1,0 +1,10 @@
+<mujoco model="youbot_scene">
+  <!-- Combines the robot (youbot.xml) with the environment (environment.xml).
+       Load this file when you want the full scene; load youbot.xml directly
+       if you only need the bare robot (e.g. to inspect it in isolation). -->
+  <include file="youbot.xml"/>
+  <include file="environment.xml"/>
+
+  <statistic center="0 0 0" extent="1.5"/>
+
+</mujoco>
