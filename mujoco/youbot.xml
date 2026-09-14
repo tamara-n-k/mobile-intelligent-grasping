@@ -138,6 +138,15 @@
     </body>
   </worldbody>
 
+  <!-- wheel collisions overlap with base by ~3cm
+       without excluding these contacts the solver tries to resolve that penetration by spinning the wheels  -->
+  <contact>
+    <exclude body1="base_link" body2="wheel_link_fl"/>
+    <exclude body1="base_link" body2="wheel_link_fr"/>
+    <exclude body1="base_link" body2="wheel_link_bl"/>
+    <exclude body1="base_link" body2="wheel_link_br"/>
+  </contact>
+
   <actuator>
     <velocity name="wheel_fl" joint="wheel_joint_fl" kv="15" ctrlrange="-15 15"/>
     <velocity name="wheel_fr" joint="wheel_joint_fr" kv="15" ctrlrange="-15 15"/>
