@@ -46,7 +46,7 @@
          the floor. Wrapping it in a body with a freejoint and lifting it by the
          wheel radius + caster drop lets the robot actually rest on the ground. -->
     <body name="base_link" pos="0 0 0.0815">
-      <freejoint/>
+      <inertial pos="0 0 0" mass="20.0" diaginertia="0.14 0.14 0.22"/>
       <geom class="visual" rgba="0.3 0.3 0.3 1" mesh="base"/>
       <geom class="collision" mesh="base_convex"/>
       <geom class="visual" pos="-0.159 0 0.046" quat="1 0 0 0" mesh="plate"/>
@@ -122,7 +122,7 @@
                   <inertial pos="0 -0.001 0" mass="0.01" diaginertia="0.01 0.01 0.01"/>
                   <joint name="gripper_finger_joint_l" type="slide" range="0 0.0115" actuatorfrcrange="-1 1" damping="1" frictionloss="1" axis="0 -1 0"/>
                   <geom class="visual" mesh="finger"/>
-                  <geom class="collision" mesh="finger_convex"/>
+                  <geom class="collision" mesh="finger_convex" friction="1.5 0.005 0.0001" solref="0.01 1" solimp="0.95 0.99 0.001"/>
                 </body>
                 <body name="gripper_finger_link_r" pos="0.004 -0.008 0.046">
                   <inertial pos="0 -0.001 0" mass="0.01" diaginertia="0.01 0.01 0.01"/>
