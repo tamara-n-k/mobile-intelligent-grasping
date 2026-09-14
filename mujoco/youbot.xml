@@ -137,4 +137,21 @@
       </body>
     </body>
   </worldbody>
+
+  <actuator>
+    <velocity name="wheel_fl" joint="wheel_joint_fl" kv="15" ctrlrange="-15 15"/>
+    <velocity name="wheel_fr" joint="wheel_joint_fr" kv="15" ctrlrange="-15 15"/>
+    <velocity name="wheel_bl" joint="wheel_joint_bl" kv="15" ctrlrange="-15 15"/>
+    <velocity name="wheel_br" joint="wheel_joint_br" kv="15" ctrlrange="-15 15"/>
+  
+    <position name="arm1" joint="arm_joint_1" kp="30" ctrlrange="0 5.89921"/>
+    <position name="arm2" joint="arm_joint_2" kp="30" ctrlrange="0 2.70526"/>
+    <position name="arm3" joint="arm_joint_3" kp="30" ctrlrange="-5.18363 0"/>
+    <position name="arm4" joint="arm_joint_4" kp="20" ctrlrange="0 3.57792"/>
+    <position name="arm5" joint="arm_joint_5" kp="10" ctrlrange="0 5.84685"/>
+  
+    <position name="gripper_l" joint="gripper_finger_joint_l" kp="80" ctrlrange="0 0.0115"/>
+    <position name="gripper_r" joint="gripper_finger_joint_r" kp="80" ctrlrange="0 0.0115"/>
+  </actuator>
+
 </mujoco>
