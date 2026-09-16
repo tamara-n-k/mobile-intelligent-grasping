@@ -26,7 +26,12 @@ Closed laboratory-style environment
 <geom name="wall_east" type="box" size="0.05 2.5 0.25" pos="2.5 0 0.25" material="wall_mat"/>
 <geom name="wall_west" type="box" size="0.05 2.5 0.25" pos="-2.5 0 0.25" material="wall_mat"/>
 
-<camera name="rgbd_cam" pos="1.6 0.35 0.7" euler="0 45 90" fovy="45"/>
+<geom name="tripod_leg1" type="capsule" fromto="1.755 0.450 0    1.755 0.270 0.460" size="0.008" rgba="0.75 0.75 0.75 1" contype="0" conaffinity="0"/>
+<geom name="tripod_leg2" type="capsule" fromto="1.599 0.180 0    1.755 0.270 0.460" size="0.008" rgba="0.75 0.75 0.75 1" contype="0" conaffinity="0"/>
+<geom name="tripod_leg3" type="capsule" fromto="1.911 0.180 0    1.755 0.270 0.460" size="0.008" rgba="0.75 0.75 0.75 1" contype="0" conaffinity="0"/>
+<geom name="tripod_head" type="cylinder" fromto="1.755 0.270 0.460    1.755 0.270 0.480" size="0.015" rgba="0.15 0.15 0.15 1" contype="0" conaffinity="0"/>
+<geom name="tripod_cam_box" type="box" size="0.02 0.02 0.015" pos="1.755 0.270 0.497" rgba="0.1 0.1 0.1 1" contype="0" conaffinity="0"/>
+<camera name="rgbd_cam" pos="1.755 0.270 0.500" xyaxes="-0.012 1.000 0.000 -0.254 -0.003 0.967"/>
 
 <body name="table1" pos="1.0 0.35 0">
 <geom name="table1_top" type="box" size="0.18 0.15 0.01" pos="0 0 0.12" material="table_mat"/>

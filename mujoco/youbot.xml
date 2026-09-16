@@ -118,6 +118,11 @@
                 <geom class="collision" pos="0.003 0 -0.034" quat="1 0 0 0" mesh="arm5_convex"/>
                 <geom class="visual" mesh="palm"/>
                 <geom class="collision" mesh="palm_convex"/>
+                <body name="wrist_cam_mount" pos="-0.05 0 0.06">
+                  <geom class="visual" type="capsule" fromto="0 0 0 0.05 0 -0.06" size="0.003" rgba="0.15 0.15 0.15 1"/>
+                  <geom class="visual" type="box" size="0.008 0.008 0.008" pos="0 0 0" rgba="0.05 0.05 0.05 1"/>
+                  <camera name="wrist_cam" pos="-0.0118 -0.0039 0.0069" xyaxes="0.06817166 -0.99563425 -0.05866904 0.14935096 -0.04723948 0.98739897"/>
+                </body>
                 <body name="gripper_finger_link_l" pos="0.004 0.008 0.046" quat="0 0 0 1">
                   <inertial pos="0 -0.001 0" mass="0.01" diaginertia="0.01 0.01 0.01"/>
                   <joint name="gripper_finger_joint_l" type="slide" range="0 0.0115" actuatorfrcrange="-1 1" damping="1" frictionloss="1" axis="0 -1 0"/>
