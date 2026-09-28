@@ -41,6 +41,11 @@
   </asset>
 
   <worldbody>
+    <!-- mocap anchor for the base: base_lock welds base_link to it, so the base stays put
+         during arm-only manipulation. Move it via data.mocap_pos/mocap_quat together with
+         the freejoint qpos to place the robot; set data.eq_active to 0 to drive freely. -->
+    <body name="base_anchor" mocap="true" pos="0 0 0.0815"/>
+
     <!-- base_link: the whole chassis was previously bolted directly to the world
          (no body/joint of its own), which also placed the wheels ~0.0815m below
          the floor. Wrapping it in a body with a freejoint and lifting it by the
@@ -118,6 +123,9 @@
                 <geom class="collision" pos="0.003 0 -0.034" quat="1 0 0 0" mesh="arm5_convex"/>
                 <geom class="visual" mesh="palm"/>
                 <geom class="collision" mesh="palm_convex"/>
+                <!-- tool center point: centered between the finger pads, ~1cm below the fingertips.
+                     +z is the approach direction (points out of the gripper) -->
+                <site name="tcp" pos="0.004 0 0.070" size="0.004" rgba="0 1 0 0.6" group="2"/>
                 <body name="wrist_cam_mount" pos="-0.05 0 0.06">
                   <geom class="visual" type="capsule" fromto="0 0 0 0.05 0 -0.06" size="0.003" rgba="0.15 0.15 0.15 1"/>
                   <geom class="visual" type="box" size="0.008 0.008 0.008" pos="0 0 0" rgba="0.05 0.05 0.05 1"/>
@@ -151,6 +159,10 @@
     <exclude body1="base_link" body2="wheel_link_bl"/>
     <exclude body1="base_link" body2="wheel_link_br"/>
   </contact>
+<!-- sticks base link to the mocap object -->
+  <equality>
+    <weld name="base_lock" body1="base_anchor" body2="base_link"/>
+  </equality>
 
   <actuator>
     <velocity name="wheel_fl" joint="wheel_joint_fl" kv="15" ctrlrange="-15 15"/>
