@@ -41,21 +41,21 @@ Closed laboratory-style environment
 <geom name="table1_leg4" type="box" size="0.015 0.015 0.06" pos="-0.15 -0.12 0.06" material="table_mat"/>
 </body>
 
-<body name="cube_red" pos="0.94 0.40 0.145">
+<body name="cube_red" pos="0.93 0.32 0.14">
 <freejoint name="cube_red_joint"/>
-<geom name="cube_red_geom" type="box" size="0.011 0.011 0.011" material="cube_red" mass="0.05" friction="1 0.005 0.0001"/>
+<geom name="cube_red_geom" type="box" size="0.009 0.009 0.009" material="cube_red" mass="0.05" friction="1 0.005 0.0001"/>
 </body>
-<body name="cube_green" pos="1.06 0.40 0.145">
+<body name="cube_green" pos="0.93 0.44 0.14">
 <freejoint name="cube_green_joint"/>
-<geom name="cube_green_geom" type="box" size="0.011 0.011 0.011" material="cube_green" mass="0.05" friction="1 0.005 0.0001"/>
+<geom name="cube_green_geom" type="box" size="0.009 0.009 0.009" material="cube_green" mass="0.05" friction="1 0.005 0.0001"/>
 </body>
-<body name="cube_blue" pos="0.94 0.30 0.145">
+<body name="cube_blue" pos="0.93 0.26 0.14">
 <freejoint name="cube_blue_joint"/>
-<geom name="cube_blue_geom" type="box" size="0.011 0.011 0.011" material="cube_blue" mass="0.05" friction="1 0.005 0.0001"/>
+<geom name="cube_blue_geom" type="box" size="0.009 0.009 0.009" material="cube_blue" mass="0.05" friction="1 0.005 0.0001"/>
 </body>
-<body name="cube_yellow" pos="1.06 0.30 0.145">
+<body name="cube_yellow" pos="0.93 0.38 0.14">
 <freejoint name="cube_yellow_joint"/>
-<geom name="cube_yellow_geom" type="box" size="0.011 0.011 0.011" material="cube_yellow" mass="0.05" friction="1 0.005 0.0001"/>
+<geom name="cube_yellow_geom" type="box" size="0.009 0.009 0.009" material="cube_yellow" mass="0.05" friction="1 0.005 0.0001"/>
 </body>
 
 </worldbody>
