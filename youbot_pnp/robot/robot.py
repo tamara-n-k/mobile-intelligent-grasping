@@ -3,7 +3,7 @@ import os
 import mujoco
 import numpy as np
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCENE_PATH = os.path.join(REPO_ROOT, "mujoco", "scene.xml")
 
 # define robot
