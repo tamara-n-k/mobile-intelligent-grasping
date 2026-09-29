@@ -5,12 +5,42 @@ Robot description in form of URDF files and meshes
 
 ## Setup
 
-The MuJoCo tooling in this repo (viewer, mesh conversion, rendering) runs in a
-conda environment named `hrl`. Recreate it from [`environment.yml`](environment.yml):
+The MuJoCo tooling in this repo (viewer, mesh conversion, rendering) and the
+`youbot_pnp` pick-and-place package run in a conda environment named `hrl`.
+Python must be 3.10–3.13, since OMPL has no wheels for 3.14 yet.
 
 ```
 conda env create -f environment.yml
 conda activate hrl
+```
+
+Without conda, a plain virtualenv works too:
+
+```
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+- [`requirements.txt`](requirements.txt): exact, tested package versions. It also installs
+  `youbot_pnp` in editable mode, so it can be imported from anywhere and code changes apply
+  without reinstalling.
+- [`pyproject.toml`](pyproject.toml): the `youbot_pnp` package definition and its minimum
+  dependencies.
+- [`environment.yml`](environment.yml): the Python version, plus `requirements.txt`.
+
+To update an existing `hrl` env after `requirements.txt` changed:
+
+```
+conda activate hrl
+pip install -r requirements.txt
+```
+
+Quick check that everything works:
+
+```
+python youbot_pnp/scripts/check_ik.py
+python youbot_pnp/scripts/view_scene.py
 ```
 
 ## MuJoCo Model

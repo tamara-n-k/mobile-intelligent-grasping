@@ -6,8 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "youbot_pnp"
 version = "0.1.0"
 description = "youBot pick and place in MuJoCo"
-requires-python = ">=3.10"
-dependencies = ["mujoco", "numpy"]
+readme = "README.md"
+# ompl wheels exist for 3.10-3.13 only
+requires-python = ">=3.10,<3.14"
+# minimum versions the package needs; exact tested pins are in requirements.txt
+dependencies = [
+    "mujoco>=3.3",
+    "numpy>=2.0",
+    "ompl>=2.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["youbot_pnp*"]
