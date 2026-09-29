@@ -176,24 +176,30 @@ class PickAndPlaceStateMachine:
 
     #### Grasp verification using contact information from Mujoco
     def check_grasp(self):
-        data = self.robot.data
-        model = self.robot.model
-
-        touch_f1, touch_f2 = False, False
-
-        # Loop through every active contact point
-        for i in range(data.ncon):
-            contact = data.contact[i]
-
-            # get body ids and convert to body names
-            b1_name = model.body(model.geom_bodyid[contact.geom1]).name
-            b2_name = model.body(model.geom_bodyid[contact.geom2]).name
-
-            if self.object_name in (b1_name, b2_name):
-                if "gripper_finger_link_l" in (b1_name, b2_name):
-                    touch_f1 = True
-                if "gripper_finger_link_r" in (b1_name, b2_name):
-                    touch_f2 = True
-
+        touch_f1, touch_f2 = finger_contacts(self.robot, self.object_name)
         print(f"Grasp check: Left finger contact: {touch_f1}, Right finger contact: {touch_f2}")
         return touch_f1 and touch_f2
+
+
+def finger_contacts(robot, object_name):
+    """(left, right): whether each finger currently touches the object"""
+    data = robot.data
+    model = robot.model
+
+    touch_f1, touch_f2 = False, False
+
+    # Loop through every active contact point
+    for i in range(data.ncon):
+        contact = data.contact[i]
+
+        # get body ids and convert to body names
+        b1_name = model.body(model.geom_bodyid[contact.geom1]).name
+        b2_name = model.body(model.geom_bodyid[contact.geom2]).name
+
+        if object_name in (b1_name, b2_name):
+            if "gripper_finger_link_l" in (b1_name, b2_name):
+                touch_f1 = True
+            if "gripper_finger_link_r" in (b1_name, b2_name):
+                touch_f2 = True
+
+    return touch_f1, touch_f2

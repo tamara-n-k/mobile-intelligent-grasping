@@ -1,7 +1,7 @@
-import mujoco
 import mujoco.viewer
 import numpy as np
 
+from youbot_pnp.fsm.pick_and_place_fsm import finger_contacts
 from youbot_pnp.planners.grasp_planner import GraspSampler
 from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.robot.robot import FINGER_CLOSED, FINGER_OPEN, YouBot
@@ -11,18 +11,6 @@ from youbot_pnp.utils.ik_solver import IKSolver
 CUBE = "cube_red"
 SHOW_VIEWER = True
 CLOSE_TIME = 1.0  # s to let the fingers close on the cube
-
-
-def finger_contacts(robot, object_name):
-    """which fingers touch the object (like check_grasp in the Panda FSM)"""
-    m, d = robot.model, robot.data
-    left = right = False
-    for con in d.contact[:d.ncon]:
-        names = {m.body(m.geom_bodyid[con.geom1]).name, m.body(m.geom_bodyid[con.geom2]).name}
-        if object_name in names:
-            left |= "gripper_finger_link_l" in names
-            right |= "gripper_finger_link_r" in names
-    return left, right
 
 
 def run(task, sampler, robot):
