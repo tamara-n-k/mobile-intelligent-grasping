@@ -2,6 +2,8 @@ import time
 
 import numpy as np
 
+from youbot_pnp.fsm.pick_and_place_fsm import PickAndPlaceStateMachine
+from youbot_pnp.planners.grasp_planner import GraspSampler
 from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.robot.robot import YouBot
 from youbot_pnp.utils.ik_solver import IKSolver
@@ -20,6 +22,8 @@ class PickAndPlace:
         self.planner = planner
         self.ik = ik_solver
         self.viewer = viewer  # mujoco passive viewer, or None to run headless
+        self.grasp_sampler = GraspSampler(self.robot, self.ik, self.planner)
+        self.place_index = 0
 
         self._last_sync_sim = -np.inf
         self._last_sync_wall = time.time()
@@ -110,3 +114,70 @@ class PickAndPlace:
         if not path:
             return False
         return self.execute_path(path, finger_pos=finger_pos, max_joint_vel=max_joint_vel)
+
+    # ---------- pick and place ----------
+
+    def execute_pick_and_place(self, object_name, place_positions):
+        selected_place_pos = self._select_place_position(place_positions)
+
+        pick_configs = self._compute_pick_configurations(object_name)
+        if pick_configs is None:
+            return False
+        q_grasp, q_pick_approach, q_pick_lift = pick_configs
+
+        place_configs = self._compute_place_configurations(selected_place_pos, q_pick_lift, object_name)
+        if place_configs is None:
+            return False
+        q_place_approach, q_place_drop = place_configs
+
+        print("\n--- Initializing Pick and Place State Machine Engine ---")
+        fsm = PickAndPlaceStateMachine(
+            task_runner=self,
+            object_name=object_name,
+            q_pick_approach=q_pick_approach,
+            q_grasp=q_grasp,
+            q_pick_lift=q_pick_lift,
+            q_place_approach=q_place_approach,
+            q_place_drop=q_place_drop
+        )
+        return fsm.run()
+
+    def _select_place_position(self, place_positions):
+        """a single (x, y, z) position, or cycles through a list of them (one per call)"""
+        positions = np.asarray(place_positions, dtype=float)
+        if positions.shape == (3,):
+            return positions
+        if positions.ndim != 2 or positions.shape[1] != 3 or len(positions) == 0:
+            raise ValueError("Expected a single place position with shape (3,) or a list/array of positions with shape (N, 3)")
+
+        index = self.place_index % len(positions)
+        selected_position = positions[index]
+        self.place_index += 1
+        print(f"Selected place position {index + 1}/{len(positions)}: {selected_position}")
+        return selected_position
+
+    def _compute_pick_configurations(self, object_name):
+        print(f"\n--- Sampling valid grasp for {object_name} ---")
+        object_pos = self.robot.data.body(object_name).xpos.copy()
+
+        # the sampler already checks the approach pose above the grasp and the straight move down
+        q_grasp, _, q_approach = self.grasp_sampler.find_valid_grasp(object_pos, object_name)
+        if q_grasp is None:
+            print(f"No valid pick grasp found for {object_name}")
+            return None
+
+        # approach and lift use the same pose above the object
+        return q_grasp, q_approach, q_approach
+
+    def _compute_place_configurations(self, place_pos, q_pick_lift, object_name):
+        print(f"\n--- Calculating place targets for {np.round(place_pos, 3)} ---")
+        q_place_drop, _, q_place_approach = self.grasp_sampler.find_valid_placement(
+            place_pos=place_pos,
+            q_seed=q_pick_lift,
+            object_name=object_name
+        )
+        if q_place_drop is None:
+            print(f"No valid placement found for {np.round(place_pos, 3)}")
+            return None
+
+        return q_place_approach, q_place_drop
