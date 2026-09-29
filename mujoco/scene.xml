@@ -5,7 +5,8 @@
   <include file="youbot.xml"/>
   <include file="environment.xml"/>
 
-  <option timestep="0.002"/>
+  <!-- elliptic friction cones + impratio 10: to grasp cube-->
+    <option timestep="0.002" cone="elliptic" impratio="10"/>
 
   <statistic center="0 0 0" extent="1.5"/>
 
