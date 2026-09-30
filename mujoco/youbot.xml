@@ -14,30 +14,30 @@
   
   <asset>
     <!-- Detailed meshes: full-resolution geometry, used for visual geoms only -->
-    <mesh name="base" content_type="model/obj" file="youbot_description/meshes/youbot_base/base.obj"/>
-    <mesh name="plate" content_type="model/obj" file="youbot_description/meshes/youbot_plate/plate.obj"/>
-    <mesh name="arm0" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm0.obj"/>
-    <mesh name="arm1" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm1.obj"/>
-    <mesh name="arm2" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm2.obj"/>
-    <mesh name="arm3" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm3.obj"/>
-    <mesh name="arm4" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm4.obj"/>
-    <mesh name="arm5" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm5.obj"/>
-    <mesh name="palm" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/palm.obj"/>
-    <mesh name="finger" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/finger.obj"/>
-    <mesh name="hokuyo" content_type="model/obj" file="youbot_description/meshes/sensors/hokuyo.obj"/>
+    <mesh name="base" content_type="model/obj" file="meshes/youbot_base/base.obj"/>
+    <mesh name="plate" content_type="model/obj" file="meshes/youbot_plate/plate.obj"/>
+    <mesh name="arm0" content_type="model/obj" file="meshes/youbot_arm/arm0.obj"/>
+    <mesh name="arm1" content_type="model/obj" file="meshes/youbot_arm/arm1.obj"/>
+    <mesh name="arm2" content_type="model/obj" file="meshes/youbot_arm/arm2.obj"/>
+    <mesh name="arm3" content_type="model/obj" file="meshes/youbot_arm/arm3.obj"/>
+    <mesh name="arm4" content_type="model/obj" file="meshes/youbot_arm/arm4.obj"/>
+    <mesh name="arm5" content_type="model/obj" file="meshes/youbot_arm/arm5.obj"/>
+    <mesh name="palm" content_type="model/obj" file="meshes/youbot_gripper/palm.obj"/>
+    <mesh name="finger" content_type="model/obj" file="meshes/youbot_gripper/finger.obj"/>
+    <mesh name="hokuyo" content_type="model/obj" file="meshes/sensors/hokuyo.obj"/>
 
     <!-- Convex meshes: decimated collision hulls, used for collision geoms only -->
-    <mesh name="base_convex" content_type="model/obj" file="youbot_description/meshes/youbot_base/base_convex.obj"/>
-    <mesh name="plate_convex" content_type="model/obj" file="youbot_description/meshes/youbot_plate/plate_convex.obj"/>
-    <mesh name="arm0_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm0_convex.obj"/>
-    <mesh name="arm1_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm1_convex.obj"/>
-    <mesh name="arm2_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm2_convex.obj"/>
-    <mesh name="arm3_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm3_convex.obj"/>
-    <mesh name="arm4_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm4_convex.obj"/>
-    <mesh name="arm5_convex" content_type="model/obj" file="youbot_description/meshes/youbot_arm/arm5_convex.obj"/>
-    <mesh name="palm_convex" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/palm_convex.obj"/>
-    <mesh name="finger_convex" content_type="model/obj" file="youbot_description/meshes/youbot_gripper/finger_convex.obj"/>
-    <mesh name="hokuyo_convex" content_type="model/obj" file="youbot_description/meshes/sensors/hokuyo_convex.obj"/>
+    <mesh name="base_convex" content_type="model/obj" file="meshes/youbot_base/base_convex.obj"/>
+    <mesh name="plate_convex" content_type="model/obj" file="meshes/youbot_plate/plate_convex.obj"/>
+    <mesh name="arm0_convex" content_type="model/obj" file="meshes/youbot_arm/arm0_convex.obj"/>
+    <mesh name="arm1_convex" content_type="model/obj" file="meshes/youbot_arm/arm1_convex.obj"/>
+    <mesh name="arm2_convex" content_type="model/obj" file="meshes/youbot_arm/arm2_convex.obj"/>
+    <mesh name="arm3_convex" content_type="model/obj" file="meshes/youbot_arm/arm3_convex.obj"/>
+    <mesh name="arm4_convex" content_type="model/obj" file="meshes/youbot_arm/arm4_convex.obj"/>
+    <mesh name="arm5_convex" content_type="model/obj" file="meshes/youbot_arm/arm5_convex.obj"/>
+    <mesh name="palm_convex" content_type="model/obj" file="meshes/youbot_gripper/palm_convex.obj"/>
+    <mesh name="finger_convex" content_type="model/obj" file="meshes/youbot_gripper/finger_convex.obj"/>
+    <mesh name="hokuyo_convex" content_type="model/obj" file="meshes/sensors/hokuyo_convex.obj"/>
   </asset>
 
   <worldbody>
