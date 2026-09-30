@@ -24,6 +24,7 @@ PLACE_POSITIONS = [
 if __name__ == "__main__":
 
     robot = YouBot()
+    # teleport robot to home
     robot.reset()
     print("Home position reached: ", robot.get_arm_qpos())
 
@@ -46,6 +47,8 @@ if __name__ == "__main__":
                 print(f"Task failed for {cube}.")
             else:
                 print(f"Task succeeded for {cube}.")
+        # move back to home position       
+        task.execute_move(robot.home_pose)
 
         print("\nTask completed.")
         for cube, target in zip(CUBES, PLACE_POSITIONS):

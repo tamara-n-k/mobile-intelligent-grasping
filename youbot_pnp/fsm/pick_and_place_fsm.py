@@ -66,7 +66,6 @@ class PickAndPlaceStateMachine:
             TaskState.DESCEND_PLACE:  self._handle_descend_place,
             TaskState.RELEASE:        self._handle_release,
             TaskState.RETRACT_PLACE:  self._handle_retract_place,
-            TaskState.HOME_RETURN:     self._move_home
         }
 
         handler = state_handlers.get(self.state)
@@ -157,14 +156,6 @@ class PickAndPlaceStateMachine:
         print("FSM: Retracting arm straight up back to safety...")
         # the open fingers are still next to the object, so it is ignored
         if self.task.execute_move(self.q_place_approach, self.object_name, linear=True, finger_pos=FINGER_OPEN):
-            self.state = TaskState.HOME_RETURN
-        else:
-            self.state = TaskState.FAILED
-
-
-    def _move_home(self):
-        print("FSM: Moving to home position...")
-        if self.task.execute_move(self.robot.home_pose, linear=False):
             self.state = TaskState.COMPLETED
         else:
             self.state = TaskState.FAILED
