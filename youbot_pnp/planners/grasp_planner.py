@@ -1,7 +1,7 @@
 import numpy as np
 
 from youbot_pnp.robot.robot import YouBot
-from youbot_pnp.utils.ik_solver import IKSolver
+from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.utils.kinematic_utils import top_down_rotation
 
@@ -14,7 +14,7 @@ class GraspSampler:
     samples top-down grasp/place poses for the cubes, solves the IK and picks the best collision-free one.
     a pose is a (position, rotation matrix) tuple in world frame.
     """
-    def __init__(self, robot: YouBot, solver: IKSolver, planner: MotionPlanner):
+    def __init__(self, robot: YouBot, solver: KinematicsSolver, planner: MotionPlanner):
         self.robot = robot
         self.solver = solver
         self.planner = planner

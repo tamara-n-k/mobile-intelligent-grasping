@@ -6,7 +6,7 @@ from youbot_pnp.planners.grasp_planner import GraspSampler
 from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.robot.robot import FINGER_CLOSED, FINGER_OPEN, YouBot
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
-from youbot_pnp.utils.ik_solver import IKSolver
+from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 
 CUBE = "cube_red"
 SHOW_VIEWER = True
@@ -51,7 +51,7 @@ def run(task, sampler, robot):
 if __name__ == "__main__":
     robot = YouBot()
     robot.reset()
-    ik = IKSolver(robot)
+    ik = KinematicsSolver(robot)
     planner = MotionPlanner(robot)
     sampler = GraspSampler(robot, ik, planner)
     task = PickAndPlace(robot, planner, ik)

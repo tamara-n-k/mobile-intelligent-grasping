@@ -6,7 +6,7 @@ from youbot_pnp.fsm.pick_and_place_fsm import PickAndPlaceStateMachine
 from youbot_pnp.planners.grasp_planner import GraspSampler
 from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.robot.robot import YouBot
-from youbot_pnp.utils.ik_solver import IKSolver
+from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 
 MAX_JOINT_VEL = 0.5  # rad/s when executing paths, lower = slower (hardware limit is ~1.57 rad/s)
 SERVO_KI = 2.0  # 1/s, integral gain of the final servo (see servo_to)
@@ -17,12 +17,12 @@ class PickAndPlace:
     """
     runs the task on the robot: plans moves with the motion planner and executes them in the simulation
     """
-    def __init__(self, robot: YouBot, planner: MotionPlanner, ik_solver: IKSolver, viewer=None):
+    def __init__(self, robot: YouBot, planner: MotionPlanner, k_solver: KinematicsSolver, viewer=None):
         self.robot = robot
         self.planner = planner
-        self.ik = ik_solver
+        self.kin = k_solver
         self.viewer = viewer  # mujoco passive viewer, or None to run headless
-        self.grasp_sampler = GraspSampler(self.robot, self.ik, self.planner)
+        self.grasp_sampler = GraspSampler(self.robot, self.kin, self.planner)
         self.place_index = 0
 
         self._last_sync_sim = -np.inf

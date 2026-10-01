@@ -6,7 +6,7 @@ from youbot_pnp.utils.kinematic_utils import rotation_error
 TCP_SITE = "tcp"
 
 
-class IKSolver:
+class KinematicsSolver:
     """
     computes the inverse kinematics of the tcp site with damped least squares on the MuJoCo model.
     uses its own MjData, so solving never moves the simulated robot. targets are in world frame.

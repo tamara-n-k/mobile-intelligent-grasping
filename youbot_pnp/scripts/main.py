@@ -7,7 +7,7 @@ from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.robot.robot import YouBot
 from youbot_pnp.scripts.view_scene import CAMERA_NAME, match_free_camera
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
-from youbot_pnp.utils.ik_solver import IKSolver
+from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 
 CUBES = ["cube_red", "cube_green", "cube_blue", "cube_yellow"]
 TABLE_TOP = 0.13
@@ -28,8 +28,8 @@ if __name__ == "__main__":
     robot.reset()
     print("Home position reached: ", robot.get_arm_qpos())
 
-    ik = IKSolver(robot)
-    task = PickAndPlace(robot, MotionPlanner(robot), ik)
+    kin = KinematicsSolver(robot)
+    task = PickAndPlace(robot, MotionPlanner(robot), kin)
 
     with mujoco.viewer.launch_passive(robot.model, robot.data) as viewer:
         with viewer.lock():

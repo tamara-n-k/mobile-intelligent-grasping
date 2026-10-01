@@ -162,7 +162,7 @@ class PickAndPlaceStateMachine:
 
     def _object_offset(self):
         """object position minus tcp position, in world frame"""
-        tcp_pos, _ = self.task.ik.forward_kinematics(self.robot.get_arm_qpos())
+        tcp_pos, _ = self.task.kin.forward_kinematics(self.robot.get_arm_qpos())
         return self.robot.data.body(self.object_name).xpos - tcp_pos
 
     #### Grasp verification using contact information from Mujoco
