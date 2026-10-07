@@ -5,7 +5,7 @@ import numpy as np
 
 from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.robot.robot import YouBot
-from youbot_pnp.scripts.view_scene import CAMERA_NAME, match_free_camera
+from youbot_pnp.scripts.view_scene import CAMERA_NAME, set_fixed_camera
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 
@@ -21,7 +21,7 @@ PLACE_POSITIONS = [
     [0.86, 0.32, TABLE_TOP + CUBE_HALF_SIZE],
 ]
 
-if __name__ == "__main__":
+def main():
 
     robot = YouBot()
     # teleport robot to home
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     with mujoco.viewer.launch_passive(robot.model, robot.data) as viewer:
         with viewer.lock():
-            match_free_camera(viewer.cam, robot.data, CAMERA_NAME)
+            set_fixed_camera(viewer, robot.model, CAMERA_NAME)
         task.viewer = viewer
 
         # initial settling: cubes come to rest on the table
@@ -60,3 +60,6 @@ if __name__ == "__main__":
                 task.run_for(1.0 / 60)
         except KeyboardInterrupt:
             print("Exiting...")
+
+if __name__ == "__main__":
+    main()
