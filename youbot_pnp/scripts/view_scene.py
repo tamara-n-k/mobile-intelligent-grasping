@@ -8,7 +8,7 @@ from youbot_pnp.robot.robot import TABLE_BASE_POSE, YouBot
 
 # base pose (x, y, yaw) and the camera from mujoco/environment.xml or youbot.xml to start the view from
 BASE_X, BASE_Y, BASE_YAW = TABLE_BASE_POSE
-CAMERA_NAME = "wrist_cam"  # rgbd_cam or "wrist_cam"
+CAMERA_NAME = "rgbd_cam"  # rgbd_cam or "wrist_cam"
 ORBIT_TARGET = np.array([0.93, 0.35, 0.14])  # the mouse orbits around the view-ray point closest to the cubes
 
 def set_fixed_camera(viewer, model, camera_name):
