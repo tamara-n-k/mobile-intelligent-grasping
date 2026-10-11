@@ -4,9 +4,11 @@ import mujoco.viewer
 import numpy as np
 
 from youbot_pnp.planners.motion_planner import MotionPlanner
-from youbot_pnp.robot.robot import YouBot
+from youbot_pnp.planners.base_motion_planner import BaseMotionPlanner
+from youbot_pnp.robot.robot import YouBot, TABLE_BASE_POSE, FINGER_OPEN
 from youbot_pnp.scripts.view_scene import CAMERA_NAME, set_fixed_camera
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
+from youbot_pnp.tasks.base_motion import BaseMotion
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 
 CUBES = ["cube_red", "cube_green", "cube_blue", "cube_yellow"]
@@ -24,11 +26,14 @@ PLACE_POSITIONS = [
 def main():
 
     robot = YouBot()
-    # teleport robot to home
-    robot.reset()
+
+    start_x, start_y, start_yaw = robot.get_base_xy_yaw()
+    start_xy = (start_x, start_y)
+    print(f"Posición actual de la base detectada: X={start_x:.2f}, Y={start_y:.2f}")
     print("Home position reached: ", robot.get_arm_qpos())
 
     kin = KinematicsSolver(robot)
+    base_planner = BaseMotionPlanner(robot)
     task = PickAndPlace(robot, MotionPlanner(robot), kin)
 
     with mujoco.viewer.launch_passive(robot.model, robot.data) as viewer:
@@ -36,8 +41,16 @@ def main():
             set_fixed_camera(viewer, robot.model, CAMERA_NAME)
         task.viewer = viewer
 
+        base_task = BaseMotion(robot, base_planner, viewer=viewer)
+        base_task.execute_move(goal_xy=TABLE_BASE_POSE[:2], target_yaw=TABLE_BASE_POSE[2])
+
         # initial settling: cubes come to rest on the table
         task.run_for(0.5)
+
+        # in the table
+        if not task.execute_move(robot.home_pose, finger_pos=FINGER_OPEN):
+            print("CRITICAL: could not take arm to home pose")
+            return
 
         results = {}
         for cube in CUBES:

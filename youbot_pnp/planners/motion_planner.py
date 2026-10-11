@@ -139,6 +139,8 @@ class MotionPlanner:
         """collision-free joint path from q_start to q_goal as a list of arrays, or None"""
         self.set_ignored_bodies(ignore)
         q_start, q_goal = np.asarray(q_start, dtype=float), np.asarray(q_goal, dtype=float)
+        # integration leaves the arm ~1e-8 outside its limits (e.g. -7e-9 with range [0, ...]) and OMPL rejects that start
+        q_start = np.clip(q_start, self.robot.arm_lower, self.robot.arm_upper)
         if not self._validate(q_start, q_goal):
             return None
 
