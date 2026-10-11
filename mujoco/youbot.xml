@@ -159,7 +159,7 @@
     <exclude body1="base_link" body2="wheel_link_bl"/>
     <exclude body1="base_link" body2="wheel_link_br"/>
   </contact>
-<!-- sticks base link to the mocap object -->
+  <!-- sticks base link to the mocap object -->
   <equality>
     <weld name="base_lock" body1="base_anchor" body2="base_link"/>
   </equality>
@@ -169,6 +169,13 @@
     <velocity name="wheel_fr" joint="wheel_joint_fr" kv="15" ctrlrange="-15 15"/>
     <velocity name="wheel_bl" joint="wheel_joint_bl" kv="15" ctrlrange="-15 15"/>
     <velocity name="wheel_br" joint="wheel_joint_br" kv="15" ctrlrange="-15 15"/>
+
+    <!-- steering for each wheel (the caster axis passes through the center of the wheel): it allows the
+         wheels to be oriented in the direction of travel (swerve type), enabling the base to move in any direction -->
+    <position name="caster_fl" joint="caster_joint_fl" kp="300" kv="15" ctrlrange="-6.2832 6.2832"/>
+    <position name="caster_fr" joint="caster_joint_fr" kp="300" kv="15" ctrlrange="-6.2832 6.2832"/>
+    <position name="caster_bl" joint="caster_joint_bl" kp="300" kv="15" ctrlrange="-6.2832 6.2832"/>
+    <position name="caster_br" joint="caster_joint_br" kp="300" kv="15" ctrlrange="-6.2832 6.2832"/>
   
     <position name="arm1" joint="arm_joint_1" kp="30" ctrlrange="0 5.89921"/>
     <position name="arm2" joint="arm_joint_2" kp="30" ctrlrange="0 2.70526"/>
