@@ -1,12 +1,9 @@
-import time
-
 import mujoco
 import numpy as np
 
 from youbot_pnp.planners.base_motion_planner import BaseMotionPlanner
 from youbot_pnp.robot.robot import YouBot
-
-VIEWER_FPS = 60  # the viewer is only redrawn at this rate
+from youbot_pnp.tasks.sim_task import SimTask
 
 MAX_BASE_VEL = 0.3  # m/s when moving the base
 MAX_BASE_YAW_VEL = 0.5  # rad/s when correcting the yaw
@@ -46,7 +43,7 @@ def simplify_polyline(points, eps=2e-3):
     return np.vstack([left[:-1], right])
 
 
-class BaseMotion:
+class BaseMotion(SimTask):
     """
     Drives the mobile base with its wheels: plans the path with OMPL and executes it with a controller, the same
     way PickAndPlace does for the arm (path -> actuator commands with a speed limit -> final servo).
@@ -57,9 +54,8 @@ class BaseMotion:
     pose reached, and the base stays fixed while the arm works.
     """
     def __init__(self, robot: YouBot, base_planner: BaseMotionPlanner, viewer=None):
-        self.robot = robot
+        super().__init__(robot, viewer)
         self.planner = base_planner
-        self.viewer = viewer
 
         m = robot.model
         self.wheel_act = np.array([m.actuator(f"wheel_{k}").id for k in WHEELS])
@@ -70,32 +66,6 @@ class BaseMotion:
         wheel_geom = next(g for g in range(m.ngeom) if m.geom_bodyid[g] == m.body("wheel_link_fl").id)
         self.wheel_radius = float(m.geom_size[wheel_geom][0])
         self.lock_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_EQUALITY, "base_lock")
-
-        self._last_sync_sim = -np.inf
-        self._last_sync_wall = time.time()
-
-    # ---------- simulation / viewer ----------
-
-    def sync_viewer(self):
-        """Redraw the viewer at VIEWER_FPS and keep the simulation at real time."""
-        if self.viewer is None or not self.viewer.is_running():
-            return
-        data = self.robot.data
-        sim_elapsed = data.time - self._last_sync_sim
-        if sim_elapsed < 1.0 / VIEWER_FPS:
-            return
-        ahead = sim_elapsed - (time.time() - self._last_sync_wall)
-        if 0 < ahead < 1.0:
-            time.sleep(ahead)
-        self.viewer.sync()
-        self._last_sync_sim = data.time
-        self._last_sync_wall = time.time()
-
-    def run_for(self, duration):
-        """Step the simulation for a duration in seconds."""
-        for _ in range(max(1, round(duration / self.robot.model.opt.timestep))):
-            self.robot.step()
-            self.sync_viewer()
 
     # ---------- base lock ----------
 
