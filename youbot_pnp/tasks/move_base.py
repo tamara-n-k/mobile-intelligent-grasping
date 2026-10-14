@@ -43,7 +43,7 @@ def simplify_polyline(points, eps=2e-3):
     return np.vstack([left[:-1], right])
 
 
-class BaseMotion(SimTask):
+class MoveBase(SimTask):
     """
     Drives the mobile base with its wheels: plans the path with OMPL and executes it with a controller, the same
     way PickAndPlace does for the arm (path -> actuator commands with a speed limit -> final servo).

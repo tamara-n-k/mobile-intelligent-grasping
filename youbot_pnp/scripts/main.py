@@ -6,7 +6,7 @@ from youbot_pnp.planners.base_motion_planner import BaseMotionPlanner
 from youbot_pnp.robot.robot import YouBot, TABLE_BASE_POSE, FINGER_OPEN
 from youbot_pnp.scripts.view_scene import CAMERA_NAME, set_fixed_camera
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
-from youbot_pnp.tasks.base_motion import BaseMotion
+from youbot_pnp.tasks.move_base import MoveBase
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 
 CUBES = ["cube_red", "cube_green", "cube_blue", "cube_yellow"]
@@ -35,8 +35,8 @@ def main():
             set_fixed_camera(viewer, robot.model, CAMERA_NAME)
         task.viewer = viewer
 
-        base_task = BaseMotion(robot, base_planner, viewer=viewer)
-        base_task.execute_move(goal_xy=TABLE_BASE_POSE[:2], target_yaw=TABLE_BASE_POSE[2])
+        move_base = MoveBase(robot, base_planner, viewer=viewer)
+        move_base.execute_move(goal_xy=TABLE_BASE_POSE[:2], target_yaw=TABLE_BASE_POSE[2])
 
         # initial settling: cubes come to rest on the table
         task.run_for(0.5)
