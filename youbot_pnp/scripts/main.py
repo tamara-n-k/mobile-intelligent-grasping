@@ -1,5 +1,3 @@
-import time
-
 import mujoco.viewer
 import numpy as np
 
@@ -26,11 +24,7 @@ PLACE_POSITIONS = [
 def main():
 
     robot = YouBot()
-
-    start_x, start_y, start_yaw = robot.get_base_xy_yaw()
-    start_xy = (start_x, start_y)
-    print(f"Posición actual de la base detectada: X={start_x:.2f}, Y={start_y:.2f}")
-    print("Home position reached: ", robot.get_arm_qpos())
+    robot.reset(base_pose=(0.0, 0.0, 0.0))
 
     kin = KinematicsSolver(robot)
     base_planner = BaseMotionPlanner(robot)
@@ -46,11 +40,6 @@ def main():
 
         # initial settling: cubes come to rest on the table
         task.run_for(0.5)
-
-        # in the table
-        if not task.execute_move(robot.home_pose, finger_pos=FINGER_OPEN):
-            print("CRITICAL: could not take arm to home pose")
-            return
 
         results = {}
         for cube in CUBES:

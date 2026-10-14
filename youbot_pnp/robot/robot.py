@@ -76,27 +76,6 @@ class YouBot:
         self.data.mocap_pos[self.base_mocap] = pos
         self.data.mocap_quat[self.base_mocap] = quat
 
-    def execute_base_path(self, path_xy, yaw=0.0, viewer=None):
-        """
-        Recorre una lista de waypoints (x, y) de forma fluida 
-        actualizando el mocap y avanzando la simulación paso a paso.
-        """
-        for wp in path_xy:
-            pos = np.array([wp[0], wp[1], BASE_HEIGHT])
-            quat = np.array([np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2)])
-            
-            # We smoothly update the anchor and the base's qpos.
-            self.data.mocap_pos[self.base_mocap] = pos
-            self.data.mocap_quat[self.base_mocap] = quat
-            self.data.qpos[self.base_qadr:self.base_qadr + 3] = pos
-            self.data.qpos[self.base_qadr + 3:self.base_qadr + 7] = quat
-
-            # We advance the simulation by several waypoint steps to ensure smooth movement.
-            for _ in range(3):
-                self.step()
-                if viewer is not None:
-                    viewer.sync()
-
     def set_arm_qpos(self, q_arm):
         self.data.qpos[self.arm_qadr] = q_arm
 
