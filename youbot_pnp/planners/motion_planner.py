@@ -4,6 +4,7 @@ from ompl import base as ob
 from ompl import geometric as og
 
 from youbot_pnp.robot.robot import YouBot
+from youbot_pnp.utils.kinematic_utils import is_descendant
 
 WHEELS = ["wheel_link_fl", "wheel_link_fr", "wheel_link_bl", "wheel_link_br"]
 FINGERS = ["gripper_finger_link_l", "gripper_finger_link_r"]
@@ -32,7 +33,7 @@ class MotionPlanner:
 
         # body classification for the contact rules
         robot_root = m.body("base_link").id
-        self.robot_bodies = {b for b in range(m.nbody) if self._is_descendant(b, robot_root)}
+        self.robot_bodies = {b for b in range(m.nbody) if is_descendant(m, b, robot_root)}
         self.wheel_bodies = {m.body(n).id for n in WHEELS}
         self.finger_bodies = {m.body(n).id for n in FINGERS}
         self.world_body = 0
@@ -64,13 +65,6 @@ class MotionPlanner:
         self.planner.setProblemDefinition(self.pdef)
         self.planner.setup()
         self.planning_time = planning_time
-
-    def _is_descendant(self, body_id, root_id):
-        while body_id != 0:
-            if body_id == root_id:
-                return True
-            body_id = self.model.body_parentid[body_id]
-        return False
 
     def set_ignored_bodies(self, body_names=()):
         """bodies whose contacts are ignored, e.g. the cube while grasping/carrying it"""

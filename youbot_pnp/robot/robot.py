@@ -3,6 +3,8 @@ import os
 import mujoco
 import numpy as np
 
+from youbot_pnp.utils.kinematic_utils import yaw_to_quat
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCENE_PATH = os.path.join(REPO_ROOT, "mujoco", "scene.xml")
 
@@ -69,7 +71,7 @@ class YouBot:
         
     def place_base(self, x, y, yaw):
         """teleport the base; moves the freejoint and the mocap anchor the base is welded to"""
-        quat = np.array([np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2)])
+        quat = yaw_to_quat(yaw)
         pos = np.array([x, y, BASE_HEIGHT])
         self.data.qpos[self.base_qadr:self.base_qadr + 3] = pos
         self.data.qpos[self.base_qadr + 3:self.base_qadr + 7] = quat

@@ -3,6 +3,8 @@ import numpy as np
 from ompl import base as ob
 from ompl import geometric as og
 
+from youbot_pnp.utils.kinematic_utils import is_descendant, yaw_to_quat
+
 WHEELS = ["wheel_link_fl", "wheel_link_fr", "wheel_link_bl", "wheel_link_br"]
 
 class BaseValidityChecker(ob.StateValidityChecker):
@@ -23,7 +25,7 @@ class BaseMotionPlanner:
         self.planner_data = mujoco.MjData(m)
 
         robot_root = m.body("base_link").id
-        self.robot_bodies = {b for b in range(m.nbody) if self._is_descendant(b, robot_root)}
+        self.robot_bodies = {b for b in range(m.nbody) if is_descendant(m, b, robot_root)}
         self.wheel_bodies = {m.body(n).id for n in WHEELS}
         self.world_body = 0
         self.check_yaw = None  # yaw used to validate each state (None: the one the base currently has)
@@ -50,13 +52,6 @@ class BaseMotionPlanner:
         self.planner.setup()
         self.planning_time = planning_time
 
-    def _is_descendant(self, body_id, root_id):
-        while body_id != 0:
-            if body_id == root_id:
-                return True
-            body_id = self.model.body_parentid[body_id]
-        return False
-
     def _contact_allowed(self, b1, b2):
         pair = {b1, b2}
         # Allow wheels to be in contact with the floor (world)
@@ -79,7 +74,7 @@ class BaseMotionPlanner:
         d.qpos[base_qadr] = state_xy[0]
         d.qpos[base_qadr + 1] = state_xy[1]
         if self.check_yaw is not None:
-            d.qpos[base_qadr + 3:base_qadr + 7] = [np.cos(self.check_yaw / 2), 0.0, 0.0, np.sin(self.check_yaw / 2)]
+            d.qpos[base_qadr + 3:base_qadr + 7] = yaw_to_quat(self.check_yaw)
 
         mujoco.mj_kinematics(self.model, d)
         mujoco.mj_collision(self.model, d)

@@ -18,3 +18,17 @@ def top_down_rotation(yaw):
     y_axis = np.cross(z_axis, x_axis)
     return np.column_stack([x_axis, y_axis, z_axis])
 
+
+def yaw_to_quat(yaw):
+    """quaternion (w, x, y, z) for a rotation by yaw about the vertical"""
+    return np.array([np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2)])
+
+
+def is_descendant(model, body_id, root_id):
+    """True if body_id is root_id or lies below it in the kinematic tree"""
+    while body_id != 0:
+        if body_id == root_id:
+            return True
+        body_id = model.body_parentid[body_id]
+    return False
+
