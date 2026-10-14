@@ -24,6 +24,11 @@ def yaw_to_quat(yaw):
     return np.array([np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2)])
 
 
+def wrap_angle(a):
+    """angle wrapped to [-pi, pi)"""
+    return (a + np.pi) % (2.0 * np.pi) - np.pi
+
+
 def is_descendant(model, body_id, root_id):
     """True if body_id is root_id or lies below it in the kinematic tree"""
     while body_id != 0:

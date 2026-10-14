@@ -4,6 +4,8 @@ import numpy as np
 from youbot_pnp.planners.base_motion_planner import BaseMotionPlanner
 from youbot_pnp.robot.robot import YouBot
 from youbot_pnp.tasks.sim_task import SimTask
+from youbot_pnp.utils.kinematic_utils import wrap_angle
+from youbot_pnp.utils.path_utils import simplify_polyline
 
 MAX_BASE_VEL = 0.3  # m/s when moving the base
 MAX_BASE_YAW_VEL = 0.5  # rad/s when correcting the yaw
@@ -17,30 +19,6 @@ YAW_TOL = 0.01  # rad
 CONTROL_PERIOD = 0.01  # s between controller updates (100 Hz)
 
 WHEELS = ["fl", "fr", "bl", "br"]
-
-
-def wrap_angle(a):
-    return (a + np.pi) % (2.0 * np.pi) - np.pi
-
-
-def simplify_polyline(points, eps=2e-3):
-    """Ramer-Douglas-Peucker: keeps only the vertices of the path (OMPL interpolates it into N collinear points)"""
-    points = np.asarray(points, dtype=float)
-    if len(points) < 3:
-        return points
-    a, b = points[0], points[-1]
-    ab = b - a
-    norm = np.linalg.norm(ab)
-    if norm < 1e-12:
-        dists = np.linalg.norm(points - a, axis=1)
-    else:
-        dists = np.abs(ab[0] * (points[:, 1] - a[1]) - ab[1] * (points[:, 0] - a[0])) / norm
-    i = int(np.argmax(dists))
-    if dists[i] <= eps:
-        return np.array([a, b])
-    left = simplify_polyline(points[:i + 1], eps)
-    right = simplify_polyline(points[i:], eps)
-    return np.vstack([left[:-1], right])
 
 
 class MoveBase(SimTask):
