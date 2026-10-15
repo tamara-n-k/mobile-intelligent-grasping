@@ -24,7 +24,7 @@ PLACE_POSITIONS = [
 def main():
 
     robot = YouBot()
-    robot.reset(base_pose=(0.0, 0.0, 0.0))
+    robot.reset(base_pose=(0.1, -0.5, 0.0))
 
     kin = KinematicsSolver(robot)
     base_planner = BaseMotionPlanner(robot)

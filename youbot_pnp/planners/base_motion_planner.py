@@ -92,7 +92,7 @@ class BaseMotionPlanner:
     def _state_valid(self, state):
         return self.collision_free([state[0], state[1]])
 
-    def find_path_rrt(self, start_xy, goal_xy, n_waypoints=100, yaw=None):
+    def find_path_rrt(self, start_xy, goal_xy, yaw=None):
         self.check_yaw = yaw
         start, goal = self.space.allocState(), self.space.allocState()
         start[0], start[1] = start_xy[0], start_xy[1]
@@ -113,7 +113,6 @@ class BaseMotionPlanner:
 
         path = self.pdef.getSolutionPath()
         og.PathSimplifier(self.si).simplify(path, 1.0)
-        path.interpolate(n_waypoints)
-        
+
         states = path.getStates()
         return [np.array([s[0], s[1]]) for s in states]

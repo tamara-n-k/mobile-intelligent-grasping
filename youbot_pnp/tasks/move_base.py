@@ -5,7 +5,6 @@ from youbot_pnp.planners.base_motion_planner import BaseMotionPlanner
 from youbot_pnp.robot.robot import YouBot
 from youbot_pnp.tasks.sim_task import SimTask
 from youbot_pnp.utils.kinematic_utils import wrap_angle
-from youbot_pnp.utils.path_utils import simplify_polyline
 
 MAX_BASE_VEL = 0.3  # m/s when moving the base
 MAX_BASE_YAW_VEL = 0.5  # rad/s when correcting the yaw
@@ -97,7 +96,7 @@ class MoveBase(SimTask):
         or does not arrive.
         """
         robot = self.robot
-        pts = simplify_polyline(path)
+        pts = np.asarray(path, dtype=float)
         seg = np.diff(pts, axis=0)
         seg_len = np.linalg.norm(seg, axis=1)
         cum = np.concatenate([[0.0], np.cumsum(seg_len)])
