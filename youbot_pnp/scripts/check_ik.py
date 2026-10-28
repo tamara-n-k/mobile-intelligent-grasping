@@ -1,13 +1,14 @@
 import numpy as np
-from youbot_pnp.robot.robot import YouBot
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 from youbot_pnp.utils.kinematic_utils import top_down_rotation
+from youbot_pnp.world import World
 
 
 if __name__ == "__main__":
     # sanity checks: FK -> IK -> FK round trip and top-down reach of every cube
-    robot = YouBot()
-    robot.reset()
+    world = World()
+    world.reset()
+    robot = world.robot
     kin = KinematicsSolver(robot)
 
     rng = np.random.default_rng(1)

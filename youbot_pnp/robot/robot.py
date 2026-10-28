@@ -1,12 +1,7 @@
-import os
-
 import mujoco
 import numpy as np
 
 from youbot_pnp.utils.kinematic_utils import yaw_to_quat
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCENE_PATH = os.path.join(REPO_ROOT, "mujoco", "scene.xml")
 
 # define robot
 ARM_JOINTS = [f"arm_joint_{i}" for i in range(1, 6)]
@@ -27,12 +22,12 @@ FINGER_CLOSED = 0.0
 
 class YouBot:
     """
-    holds the youBot model/data and maps arm and gripper joints by name, since qpos/qvel/ctrl
-    also contain the base freejoint, the caster/wheel joints and the cubes
+    maps the youBot arm and gripper joints by name, since qpos/qvel/ctrl also contain the base freejoint,
+    the caster/wheel joints and the cubes. model/data are loaded and owned by the World
     """
-    def __init__(self, xml_path=SCENE_PATH):
-        self.model = mujoco.MjModel.from_xml_path(xml_path)
-        self.data = mujoco.MjData(self.model)
+    def __init__(self, model, data):
+        self.model = model
+        self.data = data
         m = self.model
 
         arm_ids = [m.joint(n).id for n in ARM_JOINTS]
@@ -92,14 +87,13 @@ class YouBot:
         self.data.ctrl[self.finger_act] = np.clip(finger_pos, FINGER_CLOSED, FINGER_OPEN)
 
     def reset(self, base_pose=TABLE_BASE_POSE, q_arm=None):
-        mujoco.mj_resetData(self.model, self.data)
+        """robot only: base pose, arm and fingers (World.reset resets the whole simulation first)"""
         q_arm = self.home_pose if q_arm is None else np.asarray(q_arm)
         self.place_base(*base_pose)
         self.set_arm_qpos(q_arm)
         self.data.qpos[self.finger_qadr] = FINGER_OPEN
         self.set_arm_ctrl(q_arm)
         self.set_gripper_ctrl(FINGER_OPEN)
-        mujoco.mj_forward(self.model, self.data)
 
     def step(self):
         # gravity/coriolis compensation on the arm dofs only (not on the base freejoint)

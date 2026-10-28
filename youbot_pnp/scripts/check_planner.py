@@ -4,10 +4,10 @@ import mujoco.viewer
 import numpy as np
 
 from youbot_pnp.planners.motion_planner import MotionPlanner
-from youbot_pnp.robot.robot import YouBot
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 from youbot_pnp.utils.kinematic_utils import top_down_rotation
+from youbot_pnp.world import World
 
 CUBES = ["cube_red", "cube_green", "cube_blue", "cube_yellow"]
 EXECUTE_CUBE = "cube_red"  # this one is executed in simulation after planning
@@ -26,8 +26,9 @@ def top_down_ik(kin, planner, pos, q_seed):
 
 
 if __name__ == "__main__":
-    robot = YouBot()
-    robot.reset()
+    world = World()
+    world.reset()
+    robot = world.robot
     kin = KinematicsSolver(robot)
     planner = MotionPlanner(robot)
     task = PickAndPlace(robot, planner, kin)

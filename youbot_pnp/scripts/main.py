@@ -8,6 +8,9 @@ from youbot_pnp.scripts.view_scene import CAMERA_NAME, set_fixed_camera
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
 from youbot_pnp.tasks.move_base import MoveBase
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
+from youbot_pnp.world import World
+from youbot_pnp.scene.scene import CUBES, CUBE_HALF_SIZE
+from youbot_pnp.utils.viewer_utils import CAMERA_NAME, set_fixed_camera, show_goal, clear_markers, geom_rgba
 
 CUBES = ["cube_red", "cube_green", "cube_blue", "cube_yellow"]
 TABLE_TOP = 0.13
@@ -23,8 +26,10 @@ PLACE_POSITIONS = [
 
 def main():
 
-    robot = YouBot()
-    robot.reset(base_pose=(0.1, -0.5, 0.0))
+    world = World()
+    start_pose = (0.1, -0.5, 0.0) if args.drive else TABLE_BASE_POSE
+    world.reset(cfg, base_pose=start_pose)
+    robot = world.robot
 
     kin = KinematicsSolver(robot)
     base_planner = BaseMotionPlanner(robot)

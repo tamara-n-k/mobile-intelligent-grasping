@@ -4,9 +4,10 @@ import numpy as np
 from youbot_pnp.fsm.pick_and_place_fsm import finger_contacts
 from youbot_pnp.planners.grasp_planner import GraspSampler
 from youbot_pnp.planners.motion_planner import MotionPlanner
-from youbot_pnp.robot.robot import FINGER_CLOSED, FINGER_OPEN, YouBot
+from youbot_pnp.robot.robot import FINGER_CLOSED, FINGER_OPEN
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
+from youbot_pnp.world import World
 
 CUBE = "cube_red"
 SHOW_VIEWER = True
@@ -49,8 +50,9 @@ def run(task, sampler, robot):
 
 
 if __name__ == "__main__":
-    robot = YouBot()
-    robot.reset()
+    world = World()
+    world.reset()
+    robot = world.robot
     ik = KinematicsSolver(robot)
     planner = MotionPlanner(robot)
     sampler = GraspSampler(robot, ik, planner)
