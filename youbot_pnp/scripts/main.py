@@ -13,6 +13,7 @@ from youbot_pnp.utils.viewer_utils import CAMERA_NAME, set_fixed_camera
 from youbot_pnp.world import World
 from youbot_pnp.scene.scene import CUBES, CUBE_HALF_SIZE
 from youbot_pnp.utils.viewer_utils import CAMERA_NAME, set_fixed_camera, show_goal, clear_markers, geom_rgba
+from youbot_pnp.utils.video_recorder import VideoRecorder
 
 
 TABLE_TOP = 0.13
@@ -43,6 +44,8 @@ def main():
     kin = KinematicsSolver(robot)
     base_planner = BaseMotionPlanner(robot)
     task = PickAndPlace(robot, MotionPlanner(robot), kin)
+    # recorder = VideoRecorder(robot.model, CAMERA_NAME, "pnp.mp4")
+    # task.recorder = recorder
 
     with mujoco.viewer.launch_passive(robot.model, robot.data) as viewer:
         with viewer.lock():

@@ -11,15 +11,17 @@ class SimTask:
     """
     base for the tasks: steps the simulation and keeps the passive viewer at real time
     """
-    def __init__(self, robot: YouBot, viewer=None):
+    def __init__(self, robot: YouBot, viewer=None, recorder=None):
         self.robot = robot
         self.viewer = viewer  # mujoco passive viewer, or None to run headless
-
+        self.recorder = recorder
         self._last_sync_sim = -np.inf
         self._last_sync_wall = time.time()
 
     def sync_viewer(self):
         """redraw at VIEWER_FPS and keep the simulation at real time while watching"""
+        if self.recorder is not None:
+            self.recorder.capture(self.robot.data)
         if self.viewer is None or not self.viewer.is_running():
             return
         data = self.robot.data
