@@ -4,9 +4,9 @@ import numpy as np
 
 from youbot_pnp.fsm.pick_and_place_fsm import finger_contacts
 from youbot_pnp.planners.motion_planner import MotionPlanner
-from youbot_pnp.rl.primitives import StubPrimitive
+from youbot_pnp.rl.primitives import Grasp, Reach, Open
 from youbot_pnp.robot.robot import FINGER_OPEN
-from youbot_pnp.scene.scene import CUBES, CUBE_HALF_SIZE, TABLE_TOP
+from youbot_pnp.scene.scene import CUBES, CUBE_HALF_SIZE, TABLE_TOP, CUBE_Z
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
 from youbot_pnp.tasks.task_generator import generate_task
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
@@ -14,7 +14,7 @@ from youbot_pnp.world import World
 
 LAMBDA = 1.0
 PLACE_TOL = 0.01
-WS_LOW, WS_HIGH = np.array([0.82, 0.22, 0.13]), np.array([0.98, 0.48, 0.16])    # actions
+WS_LOW, WS_HIGH = np.array([0.82, 0.22, CUBE_Z]), np.array([0.98, 0.48, 0.16])    # actions
 OBS_LOW, OBS_HIGH = np.array([0.40, 0.00, 0.10]), np.array([1.00, 0.70, 0.60])  # observations
 
 
@@ -29,7 +29,11 @@ class YouBotPnPEnv(gym.Env):
         robot = self.world.robot
         self.kin = KinematicsSolver(robot)
         self.task = PickAndPlace(robot, MotionPlanner(robot), self.kin)
-        self.primitives = {name: StubPrimitive() for name in ("grasp", "reach", "open")}
+        self.primitives = {
+            "grasp": Grasp(self.task, self.cubes, self._unplaced, self._held_cube),
+            "reach": Reach(self.task, self.cubes, self._unplaced, self._held_cube),
+            "open":  Open(self.task, self.cubes, self._unplaced, self._held_cube),
+        }
 
         self.action_space = spaces.Box(-1.0, 1.0, (7,), np.float32)
         obs_dim = 9 * n_cubes + 7
@@ -90,6 +94,9 @@ class YouBotPnPEnv(gym.Env):
 
     def _cube_lost(self):
         return any(self.world.scene.cube_pos(c)[2] < TABLE_TOP for c in self.cubes)
+
+    def _unplaced(self):
+        return [c for c in self.cubes if not self._is_placed(c)]
 
     def _task_reward(self, success):
         reward = float(sum(self._is_placed(c) for c in self.cubes))
