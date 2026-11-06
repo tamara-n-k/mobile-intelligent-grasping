@@ -58,7 +58,7 @@ class GraspSampler:
         self.planner.set_ignored_bodies(approach_ignore)
         free = self.planner.collision_free(q_approach)
         self.planner.set_ignored_bodies()
-        if not free or not self._linear_move_free(q_approach, q_target, [object_name]):
+        if not free or not self._linear_move_free(q_approach, q_target, [object_name] if object_name else []):
             return None
         return q_approach
 
