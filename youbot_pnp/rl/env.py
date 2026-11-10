@@ -30,9 +30,9 @@ class YouBotPnPEnv(gym.Env):
         self.kin = KinematicsSolver(robot)
         self.task = PickAndPlace(robot, MotionPlanner(robot), self.kin)
         self.primitives = {
-            "grasp": Grasp(self.task, self.cubes, self._unplaced, self._held_cube),
-            "reach": Reach(self.task, self.cubes, self._unplaced, self._held_cube),
-            "open":  Open(self.task, self.cubes, self._unplaced, self._held_cube),
+            "grasp": Grasp(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
+            "reach": Reach(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
+            "open":  Open(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
         }
 
         self.action_space = spaces.Box(-1.0, 1.0, (7,), np.float32)
