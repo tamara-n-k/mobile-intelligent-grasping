@@ -1,0 +1,11 @@
+from youbot_pnp.rl.affordance import aff_score
+
+def _affordance(self, name, target):
+    held = self._held_cube()
+    if name == "grasp":
+        keypoints = [] if held else [self.world.scene.cube_pos(c) for c in self._unplaced()]
+    elif name == "reach":
+        keypoints = [] if held is None else [self.cfg.goals[held]]
+    else:
+        keypoints = []
+    return aff_score(name, target, keypoints)
