@@ -92,7 +92,6 @@ class YouBotPnPEnv(gym.Env):
             return 1.0 if held else 0.0
         return aff_score(name, target, keypoints)
 
-
     def _held_cube(self):
         for cube in self.cubes:
             if all(finger_contacts(self.world.robot, cube)):
@@ -118,6 +117,8 @@ class YouBotPnPEnv(gym.Env):
             reward += 10.0
         if not success:
             reward -= 0.1
+        if self._cube_lost():
+            reward -= 5.0
         return float(reward)
 
     def _obs(self):
