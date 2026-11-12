@@ -36,10 +36,13 @@ One RL step = one whole primitive (not one physics step).
 
 | Primitive              | Params | Built from (existing code)                                         |
 |------------------------|--------|--------------------------------------------------------------------|
-| `grasp(x, y, z, yaw)`  | 4      | open → approach (RRT) → descend (linear) → close → lift, `finger_contacts` check |
-| `reach(x, y, z)`       | 3      | IK at top-down pose → approach above → descend (linear)            |
-| `open()`               | 0      | open fingers → retract up (`_handle_release` + `_handle_retract_place`)                                        |
+| `grasp(x, y, z, yaw)`  | 4      | lift if around a cube → open → approach (RRT) → descend (linear) → close → lift, `finger_contacts` check |
+| `reach(x, y, z)`       | 3      | lift if around a cube → IK at top-down pose → approach above → descend (linear) |
+| `open()`               | 0      | open fingers (`_handle_release`), no retract                       |
 
+- `open` only opens the fingers and leaves the arm where it is, so `success` means the gripper opened. It does not report a retract that never happened. As in MAPLE, the next skill lifts first.
+- Lift at the start of `grasp` and `reach`: if the gripper is empty and the TCP is within 3 cm of a cube, the arm first moves straight up by `APPROACH_HEIGHT` (linear path, ignoring that cube). This is needed because a sideways RRT move from a placed cube knocked it even though the path was collision-checked: more than 5 mm in 9/30 test runs without the lift, at most 0.53 mm with it.
+- After `open` a finger can still touch the cube (2/30 test runs). `_is_placed` is then false until the next primitive lifts the arm, so the episode ends one step later.
 - Params in `[-1, 1]` are mapped to the table workspace, e.g. x ∈ [0.82, 0.98], y ∈ [0.22, 0.48],
   z ∈ [0.13, 0.16] (tune with an IK reachability check).
 - Yaw is wrapped to `[0, π/2)` like `_object_yaw`, because the cube is symmetric and `arm_joint_5` cannot turn fully.
@@ -122,11 +125,29 @@ The timing check tells us where the time goes and therefore we can choose to sim
 
 Done when: we know the wall time per primitive and which part takes the most time.
 
+**Result (2026-11-12, done):** `youbot_pnp/scripts/check_timing.py`, 1 cube, 20 seeds, headless. Primitives run through `env.step()` with hand-picked parameters (true cube position, goal).
+
+| Primitive | Success | Wall mean (max) | Sim mean | Sim / wall |
+|-----------|---------|-----------------|----------|------------|
+| grasp     | 20/20   | 0.30 s (0.54 s) | 7.60 s   | 25×        |
+| reach     | 20/20   | 0.17 s (0.25 s) | 3.31 s   | 20×        |
+| open      | 20/20   | 0.01 s (0.02 s) | 0.50 s   | 50×        |
+
+Where the time goes (exclusive wall time, grasp / reach):
+- physics (`mj_step`): 47 % / 41 %
+- collision checks (`collision_free`, mostly inside RRT and the linear path checks): 45 % / 48 %
+- everything else (OMPL itself, IK, grasp sampling, sim loop overhead, obs/reward): under 10 %
+
+Conclusions:
+- No simplification of the primitives is needed. `check_resolution=0.003` causes half of the collision cost but stays, because it stops the gripper from skipping through the cubes.
+- About 0.16 s per primitive → about 22,000 primitives/hour per env. The 30k warm-up steps take at most about 1.4 h on one env, less in practice because random primitives often fail before the robot moves (about 0.06 s per step in `check_rl_env.py`). With `SubprocVecEnv` (4 envs) roughly 3–3.5× faster.
+- SAC network updates (a few ms on CPU) are cheap compared to an env step, so more than one gradient step per env step (`gradient_steps` > 1) is affordable.
+
 #### 2. Primitives 
 Each primitive is a small class that turns parameters into a motion.
-- grasp(x, y, z, yaw): like _handle_open_gripper through _handle_lift_pick.
-- reach(x, y, z): move above the target, then descend linearly, ignoring the held cube.
-- open(): _handle_release + _handle_retract_place.
+- grasp(x, y, z, yaw): lift first if the empty gripper is around a cube, then like _handle_open_gripper through _handle_lift_pick.
+- reach(x, y, z): lift first if the empty gripper is around a cube, then move above the target and descend linearly, ignoring the held cube.
+- open(): _handle_release only. The retract from _handle_retract_place moves to the lift at the start of grasp and reach.
 - the policy only gives coordinates, not a cube name: for the planner ignore list we take the cube nearest to the target (grasp) or the held cube (reach), the held cube comes from finger_contacts
 - if IK or RRT fails, the primitive does nothing and returns success = False
 
@@ -173,3 +194,8 @@ Done when: it works on 1 cube and we can compare it with step 5.
 run FSM and policy on the same randomized tasks (same seeds)
 - metrics: success rate, primitives per episode, sim time and wall time
 - ablations: no affordance reward, quick SAC vs. MAPLE SAC, per-step vs. potential based reward
+
+### Hardware
+GPU: Nvidia t400 4gb
+32 gb ram
+cpu intel(r) xeon(r) w3-2423
