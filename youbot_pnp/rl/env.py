@@ -11,6 +11,8 @@ from youbot_pnp.tasks.pick_and_place import PickAndPlace
 from youbot_pnp.tasks.task_generator import generate_task
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 from youbot_pnp.world import World
+from youbot_pnp.rl.affordance import aff_score
+
 
 LAMBDA = 1.0
 PLACE_TOL = 0.01
@@ -81,7 +83,15 @@ class YouBotPnPEnv(gym.Env):
         return np.append(xyz, yaw)
 
     def _affordance(self, name, target):
-        return 1.0  # placeholder until aff_score exists
+        held = self._held_cube()
+        if name == "grasp":
+            keypoints = [] if held else [self.world.scene.cube_pos(c) for c in self._unplaced()]
+        elif name == "reach":
+            keypoints = [] if held is None else [self.cfg.goals[held]]
+        else:
+            return 1.0 if held else 0.0
+        return aff_score(name, target, keypoints)
+
 
     def _held_cube(self):
         for cube in self.cubes:
