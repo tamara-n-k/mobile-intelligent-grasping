@@ -50,6 +50,7 @@ class YouBotPnPEnv(gym.Env):
         self._park_unused_cubes()
         self.task.run_for(0.5)
         self.n_steps, self.last_success = 0, True
+        self.prev_phi = self._potential()
         return self._obs(), {} # returns first obs
 
     def step(self, action):
@@ -108,12 +109,19 @@ class YouBotPnPEnv(gym.Env):
     def _unplaced(self):
         return [c for c in self.cubes if not self._is_placed(c)]
 
-    def _task_reward(self, success):
-        reward = float(sum(self._is_placed(c) for c in self.cubes))
+    def _potential(self):
+        """task progress: 1 per placed cube, up to 0.75 for a held cube close to its goal"""
+        phi = float(sum(self._is_placed(c) for c in self.cubes))
         held = self._held_cube()
         if held is not None:
             d = np.linalg.norm(self.world.scene.cube_pos(held) - self.cfg.goals[held])
-            reward += 0.25 + 1 - np.tanh(10 * d)
+            phi += 0.25 + 0.5 * (1 - np.tanh(10 * d))
+        return phi
+
+    def _task_reward(self, success):
+        phi = self._potential()
+        reward = phi - self.prev_phi  # only progress pays: holding still earns 0
+        self.prev_phi = phi
         if self._all_placed():
             reward += 10.0
         if not success:
@@ -121,6 +129,7 @@ class YouBotPnPEnv(gym.Env):
         if self._cube_lost():
             reward -= 5.0
         return float(reward)
+
 
     def _obs(self):
         robot, scene = self.world.robot, self.world.scene
