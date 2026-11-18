@@ -66,7 +66,8 @@ class YouBotPnPEnv(gym.Env):
         reward = self._task_reward(success) - LAMBDA * (1 - aff)
         terminated = self._all_placed() or self._cube_lost()
         truncated = self.n_steps >= self.max_steps
-        info = {"primitive": name, "success": success, "aff": aff, "sim_time": sim_time}
+        info = {"primitive": name, "success": success, "aff": aff, "sim_time": sim_time,
+        "is_success": self._all_placed()}
         return self._obs(), reward, terminated, truncated, info
 
     def _is_placed(self, cube):
