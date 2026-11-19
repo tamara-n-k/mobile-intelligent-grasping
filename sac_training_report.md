@@ -183,6 +183,49 @@ The reported objects include OMPL planners, state spaces, validity checkers and 
 
 This appears to be a resource/reference-management warning from the Python bindings during shutdown. It is not, by itself, evidence of an SAC training failure and does not explain the 70% success rate. It should be investigated separately if it causes resource accumulation or affects repeated runs.
 
+## Visual Analysis of Policy Evolution
+
+The following videos show the evolution of the SAC policy at different
+training checkpoints. All checkpoints are evaluated using the same
+initial conditions whenever possible.
+
+### 25k timesteps
+
+[Watch execution](media/sac/1cube/sac_025k.mp4)
+
+**Observations:**
+- The policy has not learned a reliable pick-and-place sequence yet.
+- It frequently repeats grasp and open actions.
+- None of the five observed episodes completed the task.
+
+### 50k timesteps
+
+[Watch execution](media/sac/1cube/sac_050k.mp4)
+
+**Observations:**
+- The first successful execution appears.
+- The policy still shows inconsistent behaviour across episodes.
+- Only one of the five observed episodes completed the task.
+
+### 75k timesteps
+
+[Watch execution](media/sac/1cube/sac_075k.mp4)
+
+**Observations:**
+- All five observed episodes completed the task.
+- The policy generally follows the grasp → reach → open sequence.
+- One execution recovered after an unsuccessful reach attempt.
+
+### 100k timesteps
+
+[Watch execution](media/sac/1cube/sac_100k.mp4)
+
+**Observations:**
+- Four of the five observed episodes completed the task.
+- One execution failed despite the individual primitives reporting success.
+- This suggests that successful primitive execution does not necessarily
+  imply successful task completion.
+
 ## Comparison of the three runs
 
 | Metric | Run 1: state-based | Run 2: potential-based | Run 3: latest |
