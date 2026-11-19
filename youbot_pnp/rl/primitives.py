@@ -21,7 +21,7 @@ class Primitive:
         if not ok:
             self._recover()
         return ok, self.robot.data.time - t0
-    
+
     def _free_start(self):
         held = self.held()
         self.task.planner.set_ignored_bodies([held] if held else [])
@@ -46,7 +46,7 @@ class Primitive:
 
     def _lift(self):
         # Vertical movement if TCP is below Z_SAFE. Best effort: if no IK or path fails, continue without lifting (does not fail the primitive).
-        
+
         if not self.lift:
             return
         q = self.robot.get_arm_qpos()
@@ -85,27 +85,57 @@ class Grasp(Primitive):
         tcp, _ = self.task.kin.forward_kinematics(self.robot.get_arm_qpos())
         return self.robot.data.body(cube).xpos - tcp
 
-
 class Reach(Primitive):
     def _run(self, target):
         held = self.held()
+
         q_drop, _, q_app = self.task.grasp_sampler.find_valid_placement(
-            target[:3], self.robot.get_arm_qpos(), held)
+            target[:3], self.robot.get_arm_qpos(), held
+        )
+
         if q_drop is None:
             return False
+
         self._lift()
+
         fp = FINGER_CLOSED if held else None
-        return (self.task.execute_move(q_app, held, finger_pos=fp) and
-                self.task.execute_move(q_drop, held, linear=True, finger_pos=fp))
 
-    def _recover(self):
-        pass                                   # don't open: that would drop the cube
+        success = (
+            self.task.execute_move(q_app, held, finger_pos=fp)
+            and self.task.execute_move(
+                q_drop, held, linear=True, finger_pos=fp
+            )
+        )
 
+        if not success:
+            return False
+
+        # If a cube was being carried, verify that it is still grasped.
+        if held is not None:
+            return all(finger_contacts(self.robot, held))
+
+        return True
 
 class Open(Primitive):
     def _run(self, target=None):
+        held = self.held()
+
+        if held is None:
+            self._open()
+            return False
+
         self._open()
-        return True
+
+        # Verify that both fingers have released the cube.
+        released = not any(finger_contacts(self.robot, held))
+
+        return released
+
+    def _recover(self):
+        # The gripper has already been opened.
+        # Do not perform another action during recovery.
+        pass
+
 '''
 The parameter policy (your low-level policy) outputs an approximate x, y that selects a cube, and grasp then replaces it with the cube's pose from the simulator state.
 
