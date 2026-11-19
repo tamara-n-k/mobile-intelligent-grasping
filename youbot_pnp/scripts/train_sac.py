@@ -5,8 +5,6 @@ import time
 from pathlib import Path
 from ompl import util as ou
 
-
-
 import gymnasium as gym
 import torch
 from stable_baselines3 import SAC
