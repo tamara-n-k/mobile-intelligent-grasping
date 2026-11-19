@@ -8,10 +8,11 @@ SNAP_TOL = 0.02  # m
 Z_SAFE = 0.18  # m is lower
 
 class Primitive:
-    def __init__(self, task, cubes, unplaced, held, lift=True):
+    def __init__(self, task, cubes, unplaced, held, lift=True, context=None):
         self.task, self.robot = task, task.robot
         self.cubes, self.unplaced, self.held = cubes, unplaced, held
         self.lift = lift
+        self.context = context if context is not None else {}
 
     # Exiting a collision before planning
     def execute(self, target):
@@ -96,6 +97,9 @@ class Reach(Primitive):
         if q_drop is None:
             return False
 
+        # Save the validated approach configuration for the release primitive.
+        self.context["place_approach"] = q_app
+
         self._lift()
 
         fp = FINGER_CLOSED if held else None
@@ -129,11 +133,38 @@ class Open(Primitive):
         # Verify that both fingers have released the cube.
         released = not any(finger_contacts(self.robot, held))
 
-        return released
+        if not released:
+            return False
+
+        # Retrieve the validated placement approach configuration.
+        q_app = self.context.get("place_approach")
+
+        if q_app is None:
+            print("Open: No placement approach configuration available.")
+            return False
+
+        # Retract vertically using the same linear motion as the FSM.
+        print("Open: Retracting arm to placement approach...")
+        retracted = self.task.execute_move(
+            q_app,
+            held,
+            linear=True,
+            finger_pos=FINGER_OPEN
+        )
+
+        if not retracted:
+            print("Open: Retraction failed.")
+            return False
+
+        # Verify that the fingers remain clear of the released cube.
+        released_after_retract = not any(
+            finger_contacts(self.robot, held)
+        )
+
+        return released_after_retract
 
     def _recover(self):
-        # The gripper has already been opened.
-        # Do not perform another action during recovery.
+        # The gripper is already open; do not introduce another movement.
         pass
 
 '''

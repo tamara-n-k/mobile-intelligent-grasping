@@ -1,5 +1,3 @@
-"""Integration test: HRL primitives vs. the FSM on the nominal task."""
-
 import argparse
 import numpy as np
 
@@ -8,7 +6,7 @@ from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.rl.primitives import Grasp, Reach, Open
 from youbot_pnp.scene.scene import CUBES
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
-from youbot_pnp.tasks.task_generator import generate_task
+from youbot_pnp.tasks.task_generator import generate_task, VARIANTS
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 from youbot_pnp.world import World
 
@@ -56,10 +54,18 @@ def run_hrl(cfg, cube):
     def unplaced_cubes():
         return [] if cube_is_placed(world, cube, goal) else [cube]
 
+    context = {}
+
     primitives = {
-        "grasp": Grasp(task, [cube], unplaced_cubes, held_cube),
-        "reach": Reach(task, [cube], unplaced_cubes, held_cube),
-        "open": Open(task, [cube], unplaced_cubes, held_cube),
+        "grasp": Grasp(
+            task, [cube], unplaced_cubes, held_cube, context=context
+        ),
+        "reach": Reach(
+            task, [cube], unplaced_cubes, held_cube, context=context
+        ),
+        "open": Open(
+            task, [cube], unplaced_cubes, held_cube, context=context
+        ),
     }
 
     results = {}
@@ -100,7 +106,7 @@ def run_hrl(cfg, cube):
 
     if not results["reach"]:
         print("Reach failed. Skipping Open.")
-        return results, distance_after_reach, False, False
+        return results, None, False, False
 
     print("\n--- Open ---")
 
@@ -120,7 +126,19 @@ def run_hrl(cfg, cube):
     final_position = world.scene.cube_pos(cube)
     final_distance = float(np.linalg.norm(final_position - goal))
 
+    contacts_after_settle = finger_contacts(world.robot, cube)
+    released_after_settle = not any(contacts_after_settle)
+    within_tolerance = final_distance < PLACE_TOL
+
     placed = cube_is_placed(world, cube, goal)
+
+    print("\n--- Placement diagnostics ---")
+    print(f"Finger contacts after settling: {contacts_after_settle}")
+    print(f"Released immediately after Open: {released}")
+    print(f"Released after settling: {released_after_settle}")
+    print(f"Distance within tolerance: {within_tolerance}")
+    print(f"PLACE_TOL: {PLACE_TOL:.4f}m")
+    print(f"Placement check: {placed}")
     results["placement"] = placed
 
     print("\n--- Final placement ---")
@@ -166,20 +184,43 @@ def run_fsm(cfg, cube):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--cube", choices=CUBES, default=CUBES[0])
+    parser = argparse.ArgumentParser(
+        description="Compare HRL primitives against the FSM on a generated task."
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Random seed used to generate the task.",
+    )
+
+    parser.add_argument(
+        "--cube",
+        choices=CUBES,
+        default=CUBES[0],
+        help="Cube to evaluate.",
+    )
+
+    parser.add_argument(
+        "--variant",
+        choices=VARIANTS,
+        default="nominal",
+        help="Task variant: nominal, random, occupied or swap.",
+    )
 
     args = parser.parse_args()
 
-    cfg = generate_task(args.seed, "nominal", cubes=CUBES)
+    cfg = generate_task(args.seed, args.variant, cubes=CUBES)
 
     cube = args.cube
+    start = cfg.starts[cube]
     goal = np.asarray(cfg.goals[cube], dtype=float)
 
-    print("\n========== NOMINAL TASK ==========")
+    print(f"\n========== {args.variant.upper()} TASK ==========")
+    print(f"Seed:  {args.seed}")
     print(f"Cube:  {cube}")
-    print(f"Start: {np.round(cfg.starts[cube], 4)}")
+    print(f"Start: {np.round(start, 4)}")
     print(f"Goal:  {np.round(goal, 4)}")
 
     print("\n========== HRL PRIMITIVES ==========")
@@ -217,11 +258,14 @@ def main():
 
     if not hrl_pass or not fsm_pass:
         raise SystemExit(
-            "FAIL: at least one implementation did not complete "
-            "the nominal task"
+            f"FAIL: at least one implementation did not complete "
+            f"the {args.variant} task (seed={args.seed})."
         )
 
-    print("\nPASS: both implementations completed the nominal task.")
+    print(
+        f"\nPASS: both implementations completed the "
+        f"{args.variant} task (seed={args.seed})."
+    )
 
 
 if __name__ == "__main__":
