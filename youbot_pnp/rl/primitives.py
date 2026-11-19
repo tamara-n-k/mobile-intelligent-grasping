@@ -128,13 +128,8 @@ class Open(Primitive):
             self._open()
             return False
 
+        # Open the gripper first.
         self._open()
-
-        # Verify that both fingers have released the cube.
-        released = not any(finger_contacts(self.robot, held))
-
-        if not released:
-            return False
 
         # Retrieve the validated placement approach configuration.
         q_app = self.context.get("place_approach")
@@ -143,8 +138,9 @@ class Open(Primitive):
             print("Open: No placement approach configuration available.")
             return False
 
-        # Retract vertically using the same linear motion as the FSM.
+        # Retract even if residual finger contact remains.
         print("Open: Retracting arm to placement approach...")
+
         retracted = self.task.execute_move(
             q_app,
             held,
@@ -156,15 +152,12 @@ class Open(Primitive):
             print("Open: Retraction failed.")
             return False
 
-        # Verify that the fingers remain clear of the released cube.
-        released_after_retract = not any(
-            finger_contacts(self.robot, held)
-        )
+        # Verify release after retracting.
+        released = not any(finger_contacts(self.robot, held))
 
-        return released_after_retract
+        return released
 
     def _recover(self):
-        # The gripper is already open; do not introduce another movement.
         pass
 
 '''
