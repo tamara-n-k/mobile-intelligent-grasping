@@ -31,10 +31,21 @@ class YouBotPnPEnv(gym.Env):
         robot = self.world.robot
         self.kin = KinematicsSolver(robot)
         self.task = PickAndPlace(robot, MotionPlanner(robot), self.kin)
+        self.context = {}
+
         self.primitives = {
-            "grasp": Grasp(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
-            "reach": Reach(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
-            "open":  Open(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
+            "grasp": Grasp(
+                self.task, self.cubes, self._unplaced, self._held_cube,
+                lift=True, context=self.context
+            ),
+            "reach": Reach(
+                self.task, self.cubes, self._unplaced, self._held_cube,
+                lift=True, context=self.context
+            ),
+            "open": Open(
+                self.task, self.cubes, self._unplaced, self._held_cube,
+                lift=True, context=self.context
+            ),
         }
 
         self.action_space = spaces.Box(-1.0, 1.0, (7,), np.float32)
@@ -44,6 +55,8 @@ class YouBotPnPEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         # starts a new episode: generates a task, resets sim
         super().reset(seed=seed)
+        self.context.clear()
+
         task_seed = int(self.np_random.integers(2**31))
         self.cfg = generate_task(task_seed, self.variant, cubes=self.cubes)
         self.world.reset(self.cfg)
@@ -51,7 +64,7 @@ class YouBotPnPEnv(gym.Env):
         self.task.run_for(0.5)
         self.n_steps, self.last_success = 0, True
         self.prev_phi = self._potential()
-        return self._obs(), {} # returns first obs
+        return self._obs(), {}
 
     def step(self, action):
         # runs one whole primitive and returns the result
