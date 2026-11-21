@@ -12,6 +12,9 @@ NOMINAL_START_SLOTS = [1, 3, 0, 2]
 NOMINAL_GOAL_SLOTS = [7, 4, 6, 5]
 VARIANTS = ["nominal", "random", "occupied", "swap"]
 
+START_JITTER = 0.01  # m, random offset of the start position inside its slot
+X_REACH_MAX = 0.93   # m, the arm cannot grasp top-down beyond this x
+
 
 @dataclass
 class TaskConfig:
@@ -50,7 +53,8 @@ def generate_task(seed, variant="random", cubes=CUBES):
     jitter = 0.0 if variant == "nominal" else START_JITTER
     starts, goals = {}, {}
     for cube, s, g in zip(cubes, start_slots, goal_slots):
-        x, y = SLOTS[s] + rng.uniform(-jitter, jitter, 2)
+        dx, dy = rng.uniform(-jitter, jitter, 2)
+        x, y = SLOTS[s] + (min(dx, X_REACH_MAX - SLOTS[s][0]), dy)
         yaw = 0.0 if variant == "nominal" else rng.uniform(0, np.pi / 2)
         starts[cube] = (float(x), float(y), float(yaw))
         goals[cube] = (float(SLOTS[g][0]), float(SLOTS[g][1]), CUBE_Z)

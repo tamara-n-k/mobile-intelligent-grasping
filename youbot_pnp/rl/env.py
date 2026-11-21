@@ -73,7 +73,7 @@ class YouBotPnPEnv(gym.Env):
 
     def _is_placed(self, cube):
         close = np.linalg.norm(self.world.scene.cube_pos(cube) - self.cfg.goals[cube]) < PLACE_TOL
-        return close and not any(finger_contacts(self.world.robot, cube))
+        return close and not all(finger_contacts(self.world.robot, cube))
 
     def _park_unused_cubes(self):
         for i, cube in enumerate(CUBES[len(self.cubes):]):
