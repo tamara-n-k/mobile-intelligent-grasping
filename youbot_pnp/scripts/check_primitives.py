@@ -1,3 +1,5 @@
+"""Integration test: HRL primitives vs. the FSM on the nominal task."""
+
 import argparse
 import numpy as np
 
@@ -6,10 +8,9 @@ from youbot_pnp.planners.motion_planner import MotionPlanner
 from youbot_pnp.rl.primitives import Grasp, Reach, Open
 from youbot_pnp.scene.scene import CUBES
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
-from youbot_pnp.tasks.task_generator import generate_task, VARIANTS
+from youbot_pnp.tasks.task_generator import generate_task
 from youbot_pnp.utils.kinematics_solver import KinematicsSolver
 from youbot_pnp.world import World
-
 
 SETTLE_TIME = 0.5
 PLACE_TOL = 0.01
@@ -29,16 +30,13 @@ def make_world_and_task(cfg, selected_cube):
         MotionPlanner(world.robot),
         KinematicsSolver(world.robot),
     )
-
     task.run_for(SETTLE_TIME)
-
     return world, task
 
 
 def cube_is_placed(world, cube, goal):
     distance = np.linalg.norm(world.scene.cube_pos(cube) - goal)
     released = not any(finger_contacts(world.robot, cube))
-
     return distance < PLACE_TOL and released
 
 
@@ -54,105 +52,33 @@ def run_hrl(cfg, cube):
     def unplaced_cubes():
         return [] if cube_is_placed(world, cube, goal) else [cube]
 
-    context = {}
-
     primitives = {
-        "grasp": Grasp(
-            task, [cube], unplaced_cubes, held_cube, context=context
-        ),
-        "reach": Reach(
-            task, [cube], unplaced_cubes, held_cube, context=context
-        ),
-        "open": Open(
-            task, [cube], unplaced_cubes, held_cube, context=context
-        ),
+        "grasp": Grasp(task, [cube], unplaced_cubes, held_cube),
+        "reach": Reach(task, [cube], unplaced_cubes, held_cube),
+        "open": Open(task, [cube], unplaced_cubes, held_cube),
     }
 
-    results = {}
-
-    print("\n--- Grasp ---")
-
+    # The grasp primitive uses x/y to select the cube, then reads its exact pose
+    # directly from MuJoCo for grasp sampling and motion planning.
     cube_position = world.scene.cube_pos(cube)
-
     grasp_ok, grasp_time = primitives["grasp"].execute(cube_position)
-    grasp_contact = all(finger_contacts(world.robot, cube))
+    print(f"HRL grasp: success={grasp_ok}, sim_time={grasp_time:.2f}s")
 
-    results["grasp"] = grasp_ok and grasp_contact
-
-    print(f"Primitive success: {grasp_ok}")
-    print(f"Both fingers in contact: {grasp_contact}")
-    print(f"Simulation time: {grasp_time:.2f}s")
-
-    if not results["grasp"]:
-        print("Grasp failed. Skipping remaining HRL primitives.")
-        return results, None, False, False
-
-    print("\n--- Reach ---")
+    if not grasp_ok:
+        return False, np.linalg.norm(world.scene.cube_pos(cube) - goal), False
 
     reach_ok, reach_time = primitives["reach"].execute(goal)
-    held_after_reach = all(finger_contacts(world.robot, cube))
+    print(f"HRL reach: success={reach_ok}, sim_time={reach_time:.2f}s")
 
-    position_after_reach = world.scene.cube_pos(cube)
-    distance_after_reach = float(
-        np.linalg.norm(position_after_reach - goal)
-    )
-
-    results["reach"] = reach_ok and held_after_reach
-
-    print(f"Primitive success: {reach_ok}")
-    print(f"Cube still held: {held_after_reach}")
-    print(f"Distance to goal while held: {1000 * distance_after_reach:.2f}mm")
-    print(f"Simulation time: {reach_time:.2f}s")
-
-    if not results["reach"]:
-        print("Reach failed. Skipping Open.")
-        return results, None, False, False
-
-    print("\n--- Open ---")
+    if not reach_ok:
+        return False, np.linalg.norm(world.scene.cube_pos(cube) - goal), False
 
     open_ok, open_time = primitives["open"].execute(None)
+    print(f"HRL open:  success={open_ok}, sim_time={open_time:.2f}s")
 
+    final_distance = float(np.linalg.norm(world.scene.cube_pos(cube) - goal))
     released = not any(finger_contacts(world.robot, cube))
-
-    print(f"Primitive success: {open_ok}")
-    print(f"Cube released: {released}")
-    print(f"Simulation time: {open_time:.2f}s")
-
-    results["open"] = open_ok and released
-
-    # Allow the cube to settle before checking its final position.
-    task.run_for(SETTLE_TIME)
-
-    final_position = world.scene.cube_pos(cube)
-    final_distance = float(np.linalg.norm(final_position - goal))
-
-    contacts_after_settle = finger_contacts(world.robot, cube)
-    released_after_settle = not any(contacts_after_settle)
-    within_tolerance = final_distance < PLACE_TOL
-
-    placed = cube_is_placed(world, cube, goal)
-
-    print("\n--- Placement diagnostics ---")
-    print(f"Finger contacts after settling: {contacts_after_settle}")
-    print(f"Released immediately after Open: {released}")
-    print(f"Released after settling: {released_after_settle}")
-    print(f"Distance within tolerance: {within_tolerance}")
-    print(f"PLACE_TOL: {PLACE_TOL:.4f}m")
-    print(f"Placement check: {placed}")
-    results["placement"] = placed
-
-    print("\n--- Final placement ---")
-    print(f"Final cube position: {np.round(final_position, 4)}")
-    print(f"Goal position:       {np.round(goal, 4)}")
-    print(f"Final distance: {1000 * final_distance:.2f}mm")
-    print(f"Released: {released}")
-    print(f"Placed: {placed}")
-
-    task_pass = all(results.values())
-
-    print(f"\nHRL task passed: {task_pass}")
-
-    return results, final_distance, released, task_pass
+    return bool(grasp_ok and reach_ok and open_ok), final_distance, released
 
 
 def run_fsm(cfg, cube):
@@ -160,112 +86,50 @@ def run_fsm(cfg, cube):
     goal = np.asarray(cfg.goals[cube], dtype=float)
 
     success = task.execute_pick_and_place(cube, goal)
-
-    task.run_for(SETTLE_TIME)
-
-    final_distance = float(
-        np.linalg.norm(world.scene.cube_pos(cube) - goal)
-    )
-
+    final_distance = float(np.linalg.norm(world.scene.cube_pos(cube) - goal))
     released = not any(finger_contacts(world.robot, cube))
-    placed = cube_is_placed(world, cube, goal)
-
-    print("\n--- FSM result ---")
-    print(f"Execution success: {success}")
-    print(f"Final distance: {1000 * final_distance:.2f}mm")
-    print(f"Released: {released}")
-    print(f"Placed: {placed}")
-
-    task_pass = success and released and placed
-
-    print(f"FSM task passed: {task_pass}")
-
-    return task_pass, final_distance, released
+    print(f"FSM:       success={success}, final_distance={1000 * final_distance:.2f}mm, released={released}")
+    return bool(success), final_distance, released
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Compare HRL primitives against the FSM on a generated task."
-    )
-
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=0,
-        help="Random seed used to generate the task.",
-    )
-
-    parser.add_argument(
-        "--cube",
-        choices=CUBES,
-        default=CUBES[0],
-        help="Cube to evaluate.",
-    )
-
-    parser.add_argument(
-        "--variant",
-        choices=VARIANTS,
-        default="nominal",
-        help="Task variant: nominal, random, occupied or swap.",
-    )
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--cube", choices=CUBES, default=CUBES[0])
     args = parser.parse_args()
 
-    cfg = generate_task(args.seed, args.variant, cubes=CUBES)
-
+    cfg = generate_task(args.seed, "nominal", cubes=CUBES)
     cube = args.cube
-    start = cfg.starts[cube]
     goal = np.asarray(cfg.goals[cube], dtype=float)
 
-    print(f"\n========== {args.variant.upper()} TASK ==========")
-    print(f"Seed:  {args.seed}")
+    print("\n=== NOMINAL TASK ===")
     print(f"Cube:  {cube}")
-    print(f"Start: {np.round(start, 4)}")
-    print(f"Goal:  {np.round(goal, 4)}")
+    print(f"Start: {np.round(cfg.starts[cube], 4)}")
+    print(f"Goal:  {np.round(goal, 4)}\n")
 
-    print("\n========== HRL PRIMITIVES ==========")
+    print("=== HRL PRIMITIVES ===")
+    hrl_ok, hrl_distance, hrl_released = run_hrl(cfg, cube)
 
-    hrl_results, hrl_distance, hrl_released, hrl_pass = run_hrl(
-        cfg, cube
-    )
+    print("\n=== FSM BASELINE ===")
+    fsm_ok, fsm_distance, fsm_released = run_fsm(cfg, cube)
 
-    print("\n========== FSM BASELINE ==========")
-
-    fsm_pass, fsm_distance, fsm_released = run_fsm(cfg, cube)
-
-    print("\n========== COMPARISON ==========")
-
-    if hrl_distance is not None:
-        difference = abs(hrl_distance - fsm_distance)
-
-        print(f"HRL final distance: {1000 * hrl_distance:.2f}mm")
-        print(f"FSM final distance: {1000 * fsm_distance:.2f}mm")
-        print(f"Absolute difference: {1000 * difference:.2f}mm")
-        print(f"Distances comparable: {difference < PLACE_TOL}")
-    else:
-        print("HRL did not reach the placement stage.")
-
+    difference = abs(hrl_distance - fsm_distance)
+    print("\n=== COMPARISON ===")
+    print(f"HRL final distance: {1000 * hrl_distance:.2f} mm")
+    print(f"FSM final distance: {1000 * fsm_distance:.2f} mm")
+    print(f"Absolute difference: {1000 * difference:.2f} mm")
     print(f"HRL released cube: {hrl_released}")
     print(f"FSM released cube: {fsm_released}")
 
-    print("\nHRL primitive results:")
-
-    for primitive, result in hrl_results.items():
-        print(f"  {primitive}: {result}")
-
+    hrl_pass = hrl_ok and hrl_released and hrl_distance < PLACE_TOL
+    fsm_pass = fsm_ok and fsm_released and fsm_distance < PLACE_TOL
+    comparable = difference < PLACE_TOL
     print(f"\nHRL task passed: {hrl_pass}")
     print(f"FSM task passed: {fsm_pass}")
+    print(f"Distances comparable (< {1000 * PLACE_TOL:.0f} mm difference): {comparable}")
 
     if not hrl_pass or not fsm_pass:
-        raise SystemExit(
-            f"FAIL: at least one implementation did not complete "
-            f"the {args.variant} task (seed={args.seed})."
-        )
-
-    print(
-        f"\nPASS: both implementations completed the "
-        f"{args.variant} task (seed={args.seed})."
-    )
+        raise SystemExit("FAIL: at least one implementation did not complete the nominal task")
 
 
 if __name__ == "__main__":

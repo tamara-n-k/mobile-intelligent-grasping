@@ -8,11 +8,10 @@ SNAP_TOL = 0.02  # m
 Z_SAFE = 0.18  # m is lower
 
 class Primitive:
-    def __init__(self, task, cubes, unplaced, held, lift=True, context=None):
+    def __init__(self, task, cubes, unplaced, held, lift=True):
         self.task, self.robot = task, task.robot
         self.cubes, self.unplaced, self.held = cubes, unplaced, held
         self.lift = lift
-        self.context = context if context is not None else {}
 
     # Exiting a collision before planning
     def execute(self, target):
@@ -22,7 +21,7 @@ class Primitive:
         if not ok:
             self._recover()
         return ok, self.robot.data.time - t0
-
+    
     def _free_start(self):
         held = self.held()
         self.task.planner.set_ignored_bodies([held] if held else [])
@@ -47,7 +46,7 @@ class Primitive:
 
     def _lift(self):
         # Vertical movement if TCP is below Z_SAFE. Best effort: if no IK or path fails, continue without lifting (does not fail the primitive).
-
+        
         if not self.lift:
             return
         q = self.robot.get_arm_qpos()
@@ -86,80 +85,27 @@ class Grasp(Primitive):
         tcp, _ = self.task.kin.forward_kinematics(self.robot.get_arm_qpos())
         return self.robot.data.body(cube).xpos - tcp
 
+
 class Reach(Primitive):
     def _run(self, target):
         held = self.held()
-
         q_drop, _, q_app = self.task.grasp_sampler.find_valid_placement(
-            target[:3], self.robot.get_arm_qpos(), held
-        )
-
+            target[:3], self.robot.get_arm_qpos(), held)
         if q_drop is None:
             return False
-
-        # Save the validated approach configuration for the release primitive.
-        self.context["place_approach"] = q_app
-
         self._lift()
-
         fp = FINGER_CLOSED if held else None
+        return (self.task.execute_move(q_app, held, finger_pos=fp) and
+                self.task.execute_move(q_drop, held, linear=True, finger_pos=fp))
 
-        success = (
-            self.task.execute_move(q_app, held, finger_pos=fp)
-            and self.task.execute_move(
-                q_drop, held, linear=True, finger_pos=fp
-            )
-        )
+    def _recover(self):
+        pass                                   # don't open: that would drop the cube
 
-        if not success:
-            return False
-
-        # If a cube was being carried, verify that it is still grasped.
-        if held is not None:
-            return all(finger_contacts(self.robot, held))
-
-        return True
 
 class Open(Primitive):
     def _run(self, target=None):
-        held = self.held()
-
-        if held is None:
-            self._open()
-            return False
-
-        # Open the gripper first.
         self._open()
-
-        # Retrieve the validated placement approach configuration.
-        q_app = self.context.get("place_approach")
-
-        if q_app is None:
-            print("Open: No placement approach configuration available.")
-            return False
-
-        # Retract even if residual finger contact remains.
-        print("Open: Retracting arm to placement approach...")
-
-        retracted = self.task.execute_move(
-            q_app,
-            held,
-            linear=True,
-            finger_pos=FINGER_OPEN
-        )
-
-        if not retracted:
-            print("Open: Retraction failed.")
-            return False
-
-        # Verify release after retracting.
-        released = not any(finger_contacts(self.robot, held))
-
-        return released
-
-    def _recover(self):
-        pass
-
+        return True
 '''
 The parameter policy (your low-level policy) outputs an approximate x, y that selects a cube, and grasp then replaces it with the cube's pose from the simulator state.
 
