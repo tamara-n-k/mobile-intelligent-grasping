@@ -8,6 +8,7 @@ Status as of 2026-11-21. Plan step 5 ("training, quick version") in [maple_adapt
 - **Why the environment mattered.** A scripted oracle (`check_oracle.py`: perfect parameters, no learning) solved only 89/100 random tasks and 19/20 of the evaluation tasks before the fixes. That is an upper bound for any learned policy. Of the 11 failed oracle episodes, 10 were correct placements that the success predicate did not count because a finger still touched the cube, and 1 was a cube that spawned out of the arm's reach.
 - **Number of parallel environments.** The same progression was run with 4 and with 8 environments: 0% at the start, 70% (4) and 55% (8) after the affordance score was changed, and 100% in both after the environment fixes. With 8 environments the same 100k steps took about 30% less wall time (8,584 s instead of 12,233 s). See [Effect of the number of parallel environments](#effect-of-the-number-of-parallel-environments).
 - **How we got here.** After Run 3 (70%), the hypothesis was that primitive-level changes would close the gap to full-task success. Changing primitives and `env.py` together dropped success to 35% (Run 4). Each change was then tested on its own (B: Reach, C: Open, D: both) and all stayed at exactly the baseline's 70%, so the primitive-level checks were not what mattered. The next question was whether the environment capped what any policy can achieve, which led to the oracle and to the two environment fixes. See [How we got here](#how-we-got-here-from-primitive-changes-to-the-oracle).
+- **4 cubes with fixed goals (Runs 7 and 8).** A new variant, `fixed_goals`, gives every cube its own fixed destination and random start positions. The oracle solves it (100/100), but SAC did not learn it: 0% success after 100k steps (generator change only) and after 500k steps (generator + primitive fix). In both runs the policy never chose `reach` and alternated `grasp` and `open`. The primitive fix worked (grasp success 0.64–0.79 → 1.0), so the failure is one of exploration, not of the primitives. Making `reach` snap to the goal is the next experiment. See [Four cubes with fixed goals](#four-cubes-with-fixed-goals-runs-7-and-8).
 - **Primitive modifications (B, C, D, Run 4).** Reach verification (B), the Open held-object check (C) and their combination (D) all finished at 70%, and a larger combined implementation (Run 4) reached only 35%. These runs used the old environment, so their negative result applies to it. The original `primitives.py`, `env.py` and `check_primitives.py` were restored from commit `5cd8bda`.
 - **Caveats.** One training seed and 20 evaluation episodes. With 20/20 successes the 95% lower confidence bound is about 84%. Confirm with more evaluation seeds and additional training seeds before claiming a perfect result (see [Next steps](#next-steps)).
 
@@ -16,7 +17,7 @@ Status as of 2026-11-21. Plan step 5 ("training, quick version") in [maple_adapt
 | Item | Value |
 |---|---|
 | Script | `youbot_pnp/scripts/train_sac.py`; results in `runs/<name>/` |
-| Task | `YouBotPnPEnv(n_cubes=1, variant="random")`, up to 5 primitives per episode † |
+| Task | `YouBotPnPEnv(n_cubes=1, variant="random")`, up to 5 primitives per episode † (Runs 7 and 8: `n_cubes=4, variant="fixed_goals"`, up to 20 primitives) |
 | Algorithm | SB3 SAC, `MlpPolicy` [256, 256], flat 7-dim action (argmax of the first 3 values picks the primitive) |
 | Training | 100k primitive steps, 4 or 8 parallel envs depending on the run (`SubprocVecEnv`; see [the table by number of environments](#effect-of-the-number-of-parallel-environments)), 5k random warm-up steps, 1 gradient step per transition, `ent_coef="auto"` † |
 | Evaluation | Every 5k steps on 20 fixed tasks (seeds 10000–10019, never used for training), deterministic policy † |
@@ -618,6 +619,123 @@ Observations:
 
 Run 4 (extended primitives, 35%) is documented in the follow-up investigation above. Runs 1–3 used the original environment, so comparing them with Runs 5 and 6 is only indicative.
 
+## Four cubes with fixed goals (Runs 7 and 8)
+
+Status: the oracle solves the task, but SAC has not learned it yet. Both runs ended at 0% success and never chose `reach`.
+
+### Goal and design of the `fixed_goals` variant
+
+The target use is 4 cubes that start in diverse positions and always end in the same place. Each cube has its own fixed destination, and the policy has to place it there wherever it starts. The existing `random` variant does not do this: it also shuffles the goals in every episode (they go to the free slots at random). `fixed_goals` is therefore the variant that matches the target use, and it is the only one used for now.
+
+| Cube | Fixed goal (x, y) |
+|---|---|
+| red | (0.86, 0.44) |
+| green | (0.86, 0.26) |
+| blue | (0.86, 0.38) |
+| yellow | (0.86, 0.32) |
+
+These are the nominal goals of `main.py` (`NOMINAL_GOAL_SLOTS`), so the results can be compared with the FSM. The start positions are a **random permutation of the four far-row slots** (x = 0.93, y = 0.26, 0.32, 0.38, 0.44), so any colour can start in any corner (24 arrangements), plus the usual ±1 cm jitter (x clamped to ≤ 0.93) and a random yaw.
+
+Design decisions and limits:
+
+- **Starts only in the far row.** The near row holds the goals. A cube that started on another cube's goal would block it, and solving that needs the `occupied` / `swap` behaviour (moving a cube to a free buffer slot first), which is a separate step.
+- **Limited diversity.** The start positions are the four slots that were checked for reachability and have 6 cm spacing, so the diversity is the 24 arrangements plus jitter and yaw, not arbitrary positions on the table.
+- **`random` (goals also vary) is not used for now.** It could be tested later as a generalisation test: the policy would have to read the goal from the observation instead of learning it per colour.
+
+Code: `fixed_goals` is added to `VARIANTS`, and `generate_task` has a branch that takes `goal_slots = NOMINAL_GOAL_SLOTS[:n]` and `start_slots = rng.permutation(_free_slots(goal_slots))[:n]`.
+
+### Oracle check
+
+| Primitives | Tasks | Solved |
+|---|---|---:|
+| Local machine † | seeds 0–99 | 100/100 |
+| Local machine † | evaluation seeds 10000–10019 | 20/20 |
+| Separate copy, with the vertical rise ‡ | seeds 0–59 | 60/60 |
+| Separate copy, with the vertical rise ‡ | evaluation seeds 10000–10019 | 20/20 |
+| Separate copy, without the vertical rise ‡ | seeds 0–39 | 40/40 |
+
+† Confirm which primitives were active in that run. ‡ Measured on a separate copy of the repo (MuJoCo 4.0.1, Python 3.12).
+
+### Runs 7 and 8
+
+Run directories, parallel environments and commands: *to be recorded* (both runs).
+
+| | Run 7: generator only | Run 8: generator + primitive fix |
+|---|---:|---:|
+| Training steps | 100k | 500k |
+| Wall time | 6,786 s (1.9 h, 14 fps) | 26,079 s (7.2 h, 19 fps) |
+| Evaluation success | 0% | 0% |
+| Mean evaluation reward | −2.88 ± 2.64 | −0.06 ± 0.09 |
+| Mean episode length | 20 (the limit) | 20 (the limit) |
+| `chosen_grasp / reach / open` (eval log) | 0.563 / 0 / 0.437 | 0.5 / 0 / 0.5 |
+| `success_grasp` | 0.794 (training: 0.64–0.73) | 1.0 |
+| `success_open` | 1.0 | 1.0 |
+| `failure_rate` | 0.116 (training: 0.16–0.22) | 0 |
+| `primitives/aff` | 0.947 | 0.996 |
+| Training `rollout/ep_rew_mean` | −1.44 | −0.055 |
+| `train/ent_coef` | 0.0023 | 0.0006 |
+| `train/n_updates` | 94,992 | 494,992 |
+
+For comparison, the 1-cube runs with 100% success ended with `ent_coef` 0.0141 (4 environments) and 0.0078 (8 environments) at 100k steps.
+
+What the logs show:
+
+- **`reach` is never chosen** in either run, and the policy runs `grasp` and `open` until the 20 steps are used up. In Run 8 that means 10 grasps and 10 opens per episode. A grasp raises the potential (the cube is held) and the following open lowers it again, so the net reward is about zero (−0.055 per episode).
+- **The primitive fix worked.** With it, `success_grasp` went from 0.64–0.79 to 1.0 and `failure_rate` from 0.12–0.22 to 0. The two runs also differ in length (100k against 500k steps), so the comparison is not isolated.
+- **Exploration has stopped.** `ent_coef` fell to 0.0006 in Run 8, about 20 times below the value of the 1-cube runs.
+
+### Why `reach` is not learned
+
+The per-attempt incentive to try `reach` is the same as in the 1-cube setting that did learn. It was computed with the repo's own affordance and potential formulas, for 400 seeds and 400 random reach targets per cube, assuming that the target is uniform in the action space and that the held cube is at its start position. It is a model, not a run of the simulator.
+
+| | 1 cube, `random` | 4 cubes, `fixed_goals` |
+|---|---:|---:|
+| Start → goal distance (mean, range) | 10.6 cm (5.1–20.1) | 11.0 cm (6.0–20.2) |
+| P(random reach within 1 cm of the goal) | 0.24% | 0.25% |
+| Mean affordance of a random reach | 0.32 | 0.31 |
+| Mean shaping reward | +0.016 | +0.024 |
+| Mean affordance penalty | −0.681 | −0.688 |
+| **Mean reward of a random reach** | **−0.664** | **−0.664** |
+
+A random reach costs about −0.66 (almost all of it the affordance penalty), against about −0.05 for the grasp/open loop. The cost is the same as with 1 cube, so it does not explain the difference by itself.
+
+**Hypothesis (not tested):** what changes is the payoff of the first lucky placement. With 1 cube it is worth about +11 (+1 for the placement and +10 at the end). With 4 cubes it is worth about +1, because the +10 is only paid when all four cubes are placed. The signal that could make `reach` attractive is about 11 times weaker against the same cost, and the entropy coefficient decays before a lucky reach is found often enough. Even with 1 cube, success needed tens of thousands of steps to appear (Run 2: none for 35k steps).
+
+### The primitive fix: why `primitives.py` changes
+
+After `open`, one finger still touches the cube that has just been placed. The next primitive calls `_free_start`, which treated that contact as a collision and moved the arm with `servo_to`, a straight line in joint space that does not check collisions and does not ignore the cube. With 1 cube the episode ends right after the placement, so this never mattered. With 4 cubes the arm keeps working next to the cubes that are already placed, and in the tests the finger moved a placed cube by about 20 mm, out of reach and out of tolerance.
+
+The fix replaces that movement (and the one in `_lift`) with `_rise`, a vertical rise of the TCP by `APPROACH_HEIGHT` in five IK waypoints, so the finger slides up along the cube. Nothing else changes in `grasp`, `reach` or `open`, and the policy interface is the same.
+
+A correction to an earlier statement: the rise is **not** required for the oracle in `fixed_goals` (40/40 without it). The claim that it was necessary came from the `random` variant (53/60 without, 60/60 with). It matters for the sequences that a learning policy produces and the oracle never does (opening without a reach, grasping again), which is consistent with the change in `success_grasp` from Run 7 to Run 8. It stays in.
+
+### Next experiment: reach snap (Run 9, planned)
+
+`reach` is made to snap onto the goal of the held cube when the target is within 3 cm of it in xy, in the same way `grasp` already snaps onto the nearest unplaced cube. The policy then only has to aim near the goal. By the area of the 3 cm circle over the action space, the chance that a random reach counts as a hit rises from 0.25% to about 6.8%.
+
+| File | Change |
+|---|---|
+| `rl/primitives.py` | `REACH_SNAP = 0.03`; `Primitive` takes `goal_of`; at the start of `Reach._run`, if a cube is held and the target is within `REACH_SNAP` (xy) of its goal, the target becomes the goal |
+| `rl/env.py` | the three primitives receive `goal_of=lambda c: self.cfg.goals[c]`; `_affordance` uses `tol=0.03` for `reach` |
+| `rl/affordance.py` | `reach` is measured in xy (`n = 2`), because the snap fixes z |
+
+Test on a separate copy (4 cubes, `fixed_goals`, seeds 10000–10005, one cube per seed):
+
+| Reach aimed at | Cube placed | Mean final error |
+|---|---:|---:|
+| 0 to 2.8 cm from the goal | 6/6 (every offset tested) | 1.0 mm |
+| 4.5 cm from the goal (outside the snap) | 0/6 | 43.4 mm |
+
+The oracle still solves 8/8 tasks.
+
+Design implication: the policy no longer learns fine placement, only which goal to go to. With fixed goals this is what is wanted, but it is a design decision and should be reported as such. `PLACE_TOL` is not changed.
+
+Protocol: a 100k-step screening run (about 2 h at 14 fps), not 500k. Criterion: if `chosen_reach` is still 0 at 100k steps, stop. If the snap is not enough, the next changes are tested one at a time, in this order:
+
+1. A lower affordance weight λ (0.1–0.2), so that a random reach costs about −0.07 to −0.13 instead of −0.66.
+2. A curriculum 1 → 2 → 4 cubes (needs the fixed observation size, see below).
+3. Oracle demonstrations in the replay buffer (changes the claim from "learned from scratch").
+
 ## Next steps
 
 The 1-cube target has been reached in one run. The priority is to confirm it and record it properly before moving on.
@@ -626,7 +744,7 @@ The 1-cube target has been reached in one run. The priority is to confirm it and
 2. **Confirm beyond 20 episodes.** Evaluate `final.zip` (and `best_model.zip`) deterministically on at least 100 seeds that were not used for training. Target: 100/100, which gives a 95% lower bound of about 96%.
 3. **Repeat with other training seeds.** Train with `--seed 1` and `--seed 2` under the same configuration and report mean ± standard deviation. Keep the number of environments fixed within a comparison; 8 environments are about 30% faster.
 4. **Optional ablation.** Run the oracle with each fix alone (cheap). Retrain with each fix alone only if the report needs to say which one mattered.
-5. **Move to 4 cubes only after the oracle reaches 100% there.** With the two fixes above, the 4-cube oracle reached 53/60 (88%) on the separate copy. Replacing the `servo_to` in `_free_start` with a vertical Cartesian rise of the TCP (to avoid dragging a freshly placed cube with a finger) and re-running gave 60/60 (see [The oracle](#the-oracle-check_oraclepy)). Decide the fixed observation size and `max_steps` before training (the oracle needs 12 steps for 4 cubes, the current limit is 20).
+5. **4 cubes (`fixed_goals`).** The oracle reaches 100% (100/100 and 20/20 on the local machine †), but Runs 7 and 8 did not learn (0% success, `reach` never chosen). Next: Run 9 with the reach snap as a 100k-step screening run, stopping if `chosen_reach` is still 0. If it does not work, change one factor at a time (lower λ, curriculum, oracle demonstrations). See [Four cubes with fixed goals](#four-cubes-with-fixed-goals-runs-7-and-8). Keep `max_steps` at 20 until the failures are understood (the oracle needs 12 steps).
 
 **What not to change:**
 
@@ -636,7 +754,7 @@ The 1-cube target has been reached in one run. The priority is to confirm it and
 
 ## Open decisions for later steps
 
-- **Fixed observation size.** `obs_dim = 9 · n_cubes + 7` changes with the number of cubes, so a 1-cube model cannot keep training on 2 or 4 cubes. With 4 fixed cube slots plus an "active" flag, the curriculum in plan step 7 could reuse models. Decide this before models are meant to carry over.
+- **Fixed observation size.** `obs_dim = 9 · n_cubes + 7` changes with the number of cubes, so a 1-cube model cannot keep training on 2 or 4 cubes. With 4 fixed cube slots plus an "active" flag, the curriculum in plan step 7 could reuse models. It is now the main candidate for the 4-cube problem (a curriculum 1 → 2 → 4 cubes), so decide it before models are meant to carry over.
 - **MAPLE version (plan step 6).** SB3 SAC has one entropy term for all 7 action dimensions. If the primitive choice stops exploring too early again (for example on harder tasks), the separate entropy for the primitive choice in MAPLE's `PAMDPPolicy` / `SACHybridTrainer` is the structural fix.
 - **Buffer slots for `occupied` / `swap`.** The reach affordance currently rewards only the held cube's goal. Moves to a free buffer slot need extra reach keypoints while the goal is blocked.
 
@@ -646,7 +764,7 @@ The 1-cube target has been reached in one run. The priority is to confirm it and
 |---|---|
 | `youbot_pnp/scripts/train_sac.py` | Training; logs `eval/success_rate` and `primitives/*` (choice, success, aff) to TensorBoard |
 | `youbot_pnp/scripts/watch_policy.py` | Replays a saved model in the viewer on the eval tasks and prints each primitive |
-| `youbot_pnp/scripts/check_oracle.py` | Scripted perfect policy through `env.step()`; upper bound for any learned policy and failure diagnosis (`--cubes`, `--seeds`, `--first-seed`) |
+| `youbot_pnp/scripts/check_oracle.py` | Scripted perfect policy through `env.step()`; upper bound for any learned policy and failure diagnosis (`--cubes`, `--variant`, `--seeds`, `--first-seed`) |
 | `youbot_pnp/scripts/export_learning_curve.py` | Prints the learning curve of a run as a markdown table from `evaluations.npz` |
 | `youbot_pnp/scripts/check_timing.py` | Wall time per primitive (plan step 1) |
 | `tensorboard --logdir runs` | Learning curves of all runs |

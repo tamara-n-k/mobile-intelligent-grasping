@@ -10,7 +10,7 @@ START_JITTER = 0.01  # m, random offset of the start position inside its slot
 # nominal task: cube starts from mujoco/environment.xml and goals = PLACE_POSITIONS in main.py (order of CUBES)
 NOMINAL_START_SLOTS = [1, 3, 0, 2]
 NOMINAL_GOAL_SLOTS = [7, 4, 6, 5]
-VARIANTS = ["nominal", "random", "occupied", "swap"]
+VARIANTS = ["nominal", "random", "fixed_goals", "occupied", "swap"]
 
 START_JITTER = 0.01  # m, random offset of the start position inside its slot
 X_REACH_MAX = 0.93   # m, the arm cannot grasp top-down beyond this x
@@ -43,11 +43,15 @@ def generate_task(seed, variant="random", cubes=CUBES):
         start_slots = rng.choice(len(SLOTS), n, replace=False)
         if variant == "random":
             goal_slots = rng.choice(_free_slots(start_slots), n, replace=False)
+        elif variant == "fixed_goals":
+            goal_slots = NOMINAL_GOAL_SLOTS[:n]
+            start_slots = rng.permutation(_free_slots(goal_slots))[:n]
         elif variant == "occupied":
             goal_slots = _goals_with_chain(rng, start_slots)
         elif variant == "swap":
             goal_slots = _goals_with_cycle(rng, start_slots)
         else:
+            start_slots = rng.choice(len(SLOTS), n, replace=False)
             raise ValueError(f"unknown variant {variant}")
 
     jitter = 0.0 if variant == "nominal" else START_JITTER

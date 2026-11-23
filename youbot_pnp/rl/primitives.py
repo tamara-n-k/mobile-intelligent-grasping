@@ -6,12 +6,14 @@ from youbot_pnp.robot.robot import FINGER_OPEN, FINGER_CLOSED
 
 SNAP_TOL = 0.02  # m
 Z_SAFE = 0.18  # m is lower
+REACH_SNAP = 0.03
 
 class Primitive:
     def __init__(self, task, cubes, unplaced, held, lift=True):
         self.task, self.robot = task, task.robot
         self.cubes, self.unplaced, self.held = cubes, unplaced, held
         self.lift = lift
+        
 
     # Exiting a collision before planning
     def execute(self, target):
@@ -25,13 +27,23 @@ class Primitive:
     def _free_start(self):
         held = self.held()
         self.task.planner.set_ignored_bodies([held] if held else [])
+        free = self.task.planner.collision_free(self.robot.get_arm_qpos())
+        self.task.planner.set_ignored_bodies()
+        if not free:
+            self._rise()
+
+    def _rise(self, height=APPROACH_HEIGHT, n=5):
+        """subida vertical del TCP en cartesianas: los dedos resbalan hacia arriba por el cubo
+        en vez de barrerlo. Ignora los cubos a propósito. Best effort."""
         q = self.robot.get_arm_qpos()
-        if self.task.planner.collision_free(q):
-            return
         tcp, R = self.task.kin.forward_kinematics(q)
-        q_up = self.task.kin.solve(q, tcp + [0, 0, APPROACH_HEIGHT], R)
-        if q_up is not None:
-            self.task.servo_to(q_up, finger_pos=None if held else FINGER_OPEN)
+        path, q_k = [], q
+        for k in range(1, n + 1):
+            q_k = self.task.kin.solve(q_k, tcp + [0.0, 0.0, height * k / n], R)
+            if q_k is None:
+                return False
+            path.append(q_k)
+        return self.task.execute_path(path)
 
     def _open(self):
         self.robot.set_gripper_ctrl(FINGER_OPEN)
@@ -45,20 +57,11 @@ class Primitive:
         return min(pos, key=lambda c: np.linalg.norm(pos[c][:2] - xyz[:2]), default=None), pos
 
     def _lift(self):
-        # Vertical movement if TCP is below Z_SAFE. Best effort: if no IK or path fails, continue without lifting (does not fail the primitive).
-        
         if not self.lift:
             return
-        q = self.robot.get_arm_qpos()
-        tcp, R = self.task.kin.forward_kinematics(q)
-        if tcp[2] >= Z_SAFE:
-            return
-        q_up = self.task.kin.solve(q, tcp + [0, 0, APPROACH_HEIGHT], R)
-        if q_up is None:
-            return
-        # the cube in the hand, or the one closest to the fingers, is ignored in the collision
-        cube = self.held() or self._nearest(self.cubes, tcp)[0]
-        self.task.execute_move(q_up, cube, linear=True)
+        tcp, _ = self.task.kin.forward_kinematics(self.robot.get_arm_qpos())
+        if tcp[2] < Z_SAFE:
+            self._rise()
 
 class Grasp(Primitive):
     def _run(self, target):
