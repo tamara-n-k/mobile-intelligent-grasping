@@ -1,35 +1,39 @@
 # SAC training on 1 cube: results and next steps
 
-Status as of 2026-11-19. Plan step 5 ("training, quick version") in [maple_adaptation_plan.md](maple_adaptation_plan.md).
+Status as of 2026-11-21. Plan step 5 ("training, quick version") in [maple_adaptation_plan.md](maple_adaptation_plan.md).
 
-**Summary:** SB3 SAC has now reached **70% evaluation success after 100k steps**, improving on the previous 55% result. During the final training iterations, the success rate fluctuated between 70% and 76%. The final evaluation achieved 70%, with a mean episode reward of 7.79 and an average episode length of 3.60 steps.
+## Summary
 
-The primitive-level metrics are encouraging: reach and open both report 100% success, while grasp reports 94.1%. The affordance score is 0.991 and the failure rate is 2.08%. However, these individual primitive metrics do not yet translate into an overall task success rate above 80%.
-
-The next priority is to investigate the gap between primitive-level and full-task success. Before changing SAC hyperparameters or launching another long training run, we should inspect the reward function, the success condition and the relationship between primitive execution and task completion.
+- **Result (Runs 5 and 6).** After fixing two problems in the environment, SB3 SAC reached **100% evaluation success (20/20) after 100k steps**, both with 4 parallel environments (Run 5) and with 8 (Run 6). In both runs the mean episode reward is 11.00 and the mean episode length is 3.00 steps, and the training rollouts also showed 100% success over the last logged iterations. Before the fixes, the best results were 70% with 4 environments and 55% with 8 (Runs 3 and 2).
+- **Why the environment mattered.** A scripted oracle (`check_oracle.py`: perfect parameters, no learning) solved only 89/100 random tasks and 19/20 of the evaluation tasks before the fixes. That is an upper bound for any learned policy. Of the 11 failed oracle episodes, 10 were correct placements that the success predicate did not count because a finger still touched the cube, and 1 was a cube that spawned out of the arm's reach.
+- **Number of parallel environments.** The same progression was run with 4 and with 8 environments: 0% at the start, 70% (4) and 55% (8) after the affordance score was changed, and 100% in both after the environment fixes. With 8 environments the same 100k steps took about 30% less wall time (8,584 s instead of 12,233 s). See [Effect of the number of parallel environments](#effect-of-the-number-of-parallel-environments).
+- **Primitive modifications (B, C, D, Run 4).** Reach verification (B), the Open held-object check (C) and their combination (D) all finished at 70%, and a larger combined implementation (Run 4) reached only 35%. These runs used the old environment, so their negative result applies to it. The original `primitives.py`, `env.py` and `check_primitives.py` were restored from commit `5cd8bda`.
+- **Caveats.** One training seed and 20 evaluation episodes. With 20/20 successes the 95% lower confidence bound is about 84%. Confirm with more evaluation seeds and additional training seeds before claiming a perfect result (see [Next steps](#next-steps)).
 
 ## Setup
 
-| | |
+| Item | Value |
 |---|---|
-| Script | `youbot_pnp/scripts/train_sac.py`, results in `runs/<name>/` |
-| Task | `YouBotPnPEnv(n_cubes=1, variant="random")`, up to 5 primitives per episode (as documented for the previous runs; confirm whether unchanged) |
+| Script | `youbot_pnp/scripts/train_sac.py`; results in `runs/<name>/` |
+| Task | `YouBotPnPEnv(n_cubes=1, variant="random")`, up to 5 primitives per episode † |
 | Algorithm | SB3 SAC, `MlpPolicy` [256, 256], flat 7-dim action (argmax of the first 3 values picks the primitive) |
-| Training | 100k primitive steps, 8 parallel envs (`SubprocVecEnv`), 5k random warm-up steps, 1 gradient step per transition, `ent_coef="auto"` (as documented for the previous runs; confirm whether unchanged) |
-| Evaluation | Every 5k steps on 20 fixed tasks (seeds 10000–10019, not used for training), deterministic policy (as documented for the previous runs; confirm whether unchanged) |
-| Wall time | About 3 hours for 100k steps in this run (10,893 seconds elapsed) |
+| Training | 100k primitive steps, 4 or 8 parallel envs depending on the run (`SubprocVecEnv`; see [the table by number of environments](#effect-of-the-number-of-parallel-environments)), 5k random warm-up steps, 1 gradient step per transition, `ent_coef="auto"` † |
+| Evaluation | Every 5k steps on 20 fixed tasks (seeds 10000–10019, never used for training), deterministic policy † |
+| Wall time | About 2.4–3.4 hours per 100k steps (Run 3: 10,893 s; Run 5, 4 envs: 12,233 s at about 8 fps; Run 6, 8 envs: 8,584 s at about 11 fps) |
+
+† Taken from the documentation of the earlier runs; confirm it is unchanged for Run 5.
 
 ## Run 1: state-based reward → reward hacking
 
-`runs/sac_1cube_random_s0_1117_1910`
+Run directory: `runs/sac_1cube_random_s0_1117_1910`
 
 The reward paid for the current state at every step: +1 per placed cube, and `0.25 + 1 − tanh(10 d)` while a cube is held.
 
 | Metric (100k steps) | Value |
-|---|---|
+|---|---:|
 | `eval/success_rate` | **0%** |
 | `eval/mean_reward` | 5.13 |
-| episode length | Always 5 |
+| Episode length | always 5 |
 | `chosen_grasp / reach / open` | 0.2 / 0.8 / **0** |
 
 The policy learned to grasp the cube, carry it to the goal and then keep holding it with 4 reaches, never opening. Hand-picked actions on 10 seeds confirmed the cause:
@@ -43,12 +47,15 @@ Placing paid twice as much, but the policy never discovered it. A random reach l
 
 ## Run 2: potential-based reward → 55%
 
-`runs/sac_1cube_potential_s0`
+Run directory: `runs/sac_1cube_potential_s0`
 
-The reward now pays only for **progress**, `Φ(after) − Φ(before)`, with:
+The reward now pays only for **progress**, `Φ(after) − Φ(before)`:
 
 - Φ = 1 per placed cube, plus up to `0.25 + 0.5 · (1 − tanh(10 d))` for a held cube at distance `d` from its goal (at most 0.75 < 1).
-- +10 when all cubes are placed, −0.1 for a failed primitive, −5 for a cube that falls off the table, −λ·(1 − aff) affordance penalty.
+- +10 when all cubes are placed.
+- −0.1 for a failed primitive.
+- −5 for a cube that falls off the table.
+- −λ · (1 − aff) affordance penalty.
 
 Holding still now earns 0. The same hand-picked check:
 
@@ -63,7 +70,7 @@ Holding still now earns 0. The same hand-picked check:
 | Steps | Success | Episode length | Mean reward |
 |---|---:|---:|---:|
 | 5k–35k | 0% | 5.0 | −3.4 → −0.4 |
-| 40k–60k | 0–10% | 5.0 | Around 0 |
+| 40k–60k | 0–10% | 5.0 | around 0 |
 | 65k–80k | 15–25% | 4.7 → 4.5 | 1.5–2.9 |
 | 85k–95k | 35–45% | 4.3 → 4.1 | 3.9–5.0 |
 | **100k** | **55%** | **3.9** | **6.0** |
@@ -74,7 +81,9 @@ Final training statistics: `aff` 0.97, `success_grasp` 0.91, `success_reach` 1.0
 
 ### Failure analysis (final model, 20 eval tasks)
 
-| Seed | Result | Final distance | Primitive sequence (reach error = distance of the reach target to the goal) |
+"Reach error" is the distance of the reach target to the goal.
+
+| Seed | Result | Final distance | Primitive sequence |
 |---|---|---:|---|
 | 10000 | solved | 4.4 mm | grasp → reach (4 mm) → open |
 | 10001 | solved | 9.5 mm | grasp → reach (9 mm) → open |
@@ -97,20 +106,22 @@ Final training statistics: `aff` 0.97, `success_grasp` 0.91, `success_reach` 1.0
 | 10018 | solved | 9.5 mm | grasp → reach (8 mm) → open |
 | 10019 | failed | 11.2 mm | grasp → reach (13 mm) → open → grasp → reach (11 mm) → *out of steps* |
 
+> **TODO: check the counts.** This table lists 12 solved and 8 failed tasks (60%). The evaluation reported 55% (11/20), and the text below mentions 11 solved tasks and 9 failures. Either one row is mislabelled or the table comes from a different checkpoint than the 55% evaluation.
+
 Four failure causes:
 
 1. **Reach is barely precise enough (main cause).** A cube counts as placed within `PLACE_TOL = 10 mm`. All 11 solved tasks had a reach error of 4–9.5 mm, and 4 of the 9 failures missed by 10–13 mm. The reward barely distinguishes 4 mm from 13 mm (affordance 1.0 vs 0.92, Φ differs by 0.04), so the policy learns precision only from the sparse +10.
 2. **No room for a retry.** With `max_steps = 5`, a failed attempt (3 steps) leaves only 2 steps, and a retry needs 3. Seeds 10002, 10010 and 10019 retried correctly but ran out of steps. For the same reason, training never rewards recovery.
 3. **Some goals not learned yet (3 tasks).** In 10008, 10012 and 10015 the reach goes about 22 cm off, and in 10004 the policy opens without reaching. This is likely to improve with more training.
-4. **Finger still touching after open (1 task).** In 10013 the reach was at 2 mm, but a finger still touched the cube after `open`, so `_is_placed` was false and the policy grasped again and pushed the cube away. This is the known 2/30 case from the plan.
+4. **Finger still touching after open (1 task).** In 10013 the reach was at 2 mm, but a finger still touched the cube after `open`, so `_is_placed` was false and the policy grasped again and pushed the cube away. Run 5 shows this was a general problem of the success predicate, not a single case (see below).
 
-## Run 3: latest SAC training → 70%
+## Run 3: SAC training with the original primitives → 70%
 
-**Run directory:** Not yet recorded.  
-**Training script:** `youbot_pnp/scripts/train_sac.py`  
-**Total training steps:** 100,000.
+Run directory: `runs/sac_1cube_random_s0_1119_0124` · Script: `youbot_pnp/scripts/train_sac.py` · Training steps: 100,000
 
-The latest training run improves the previous evaluation result from 55% to **70%**. The training logs show some variation in success during the final iterations, ranging from 70% to 76%, rather than a consistent improvement at every checkpoint.
+This run improved the evaluation result from 55% to **70%**. Success in the training logs varied between 70% and 76% over the final iterations rather than improving at every checkpoint.
+
+> **Note.** The logs alone do not show whether the reward function or the episode configuration changed relative to Run 2. Record the reward configuration and environment parameters before making a direct causal comparison.
 
 ### Final evaluation
 
@@ -128,12 +139,14 @@ The latest training run improves the previous evaluation result from 55% to **70
 | `primitives/chosen_reach` | 0.333 |
 | `primitives/chosen_open` | 0.313 |
 | `train/ent_coef` | 0.0194 |
-| `train/actor_loss` | -8.89 |
+| `train/actor_loss` | −8.89 |
 | `train/critic_loss` | 0.517 |
 | `train/learning_rate` | 0.0003 |
 | `train/n_updates` | 94,996 |
 
-### Training behaviour near 100k steps
+### Behaviour near 100k steps
+
+The first five rows come from the training logs; the last row is the final evaluation.
 
 | Total timesteps | Success rate | Episode reward | Episode length | Aff | Failure rate |
 |---:|---:|---:|---:|---:|---:|
@@ -144,129 +157,407 @@ The latest training run improves the previous evaluation result from 55% to **70
 | 99,952 | 70% | 7.69 | 3.62 | 0.955 | 0.0694 |
 | **100,000 (evaluation)** | **70%** | **7.79** | **3.60** | **0.991** | **0.0208** |
 
-The final evaluation reports:
-
-- `success_grasp = 0.941`
-- `success_reach = 1.0`
-- `success_open = 1.0`
-- `chosen_grasp / reach / open = 0.354 / 0.333 / 0.313`
-
-The three primitives are selected at relatively similar frequencies. There is no obvious sign in these metrics that the policy has stopped selecting one of the primitives entirely.
-
 ### Interpretation
 
-The new run is a clear improvement over the previous 55% result:
+Compared with Run 2:
 
-- Evaluation success increased by 15 percentage points.
-- Mean episode reward increased from 6.0 to 7.79.
-- Mean episode length decreased from 3.9 to 3.6 steps.
-- The reported grasp success increased from 0.91 to 0.941.
-- The affordance score increased from 0.97 to 0.991.
+- Evaluation success: 55% → **70%** (+15 points).
+- Mean evaluation reward: 6.0 → 7.79.
+- Mean episode length: 3.9 → 3.60 steps.
+- Grasp success: 0.91 → 0.941.
+- Affordance: 0.97 → 0.991.
 
-However, the target of **more than 80% success has not yet been reached**.
+The target of more than 80% was not reached. The most interesting observation was the gap between primitive-level success (reach and open 100%, grasp 94.1%) and full-task success (70%). A primitive can finish successfully without completing the intended task. Run 5 shows that part of this gap came from how the environment decided that a cube was placed.
 
-The most interesting observation is the difference between primitive-level success and full-task success. Reach and open both report 100% success, and grasp reports 94.1%, but the overall task success is only 70%.
-
-This suggests that the next investigation should focus on how primitive-level success is defined and how the environment determines whether the complete pick-and-place task has succeeded. A primitive can finish successfully without necessarily completing the intended task.
-
-The primitive selection frequencies are also relatively balanced. Therefore, there is no immediate evidence that the main issue is simply the policy avoiding one primitive.
-
-**Important:** The latest logs alone do not establish whether the reward function or episode configuration changed relative to Run 2. The run directory, reward configuration and environment parameters should be recorded before making a direct causal comparison.
+The three primitives were chosen at similar frequencies (0.354 / 0.333 / 0.313), so there was no sign that the policy had stopped using one of them.
 
 ### OMPL / nanobind shutdown warning
 
-At the end of the run, the process printed warnings such as:
+At the end of the run the process printed warnings such as `nanobind: leaked 6 instances!`, listing OMPL planners, state spaces, validity checkers and problem definitions. This looks like a reference-management warning from the Python bindings at shutdown. It is not evidence of a training failure and does not explain the 70% success rate. Investigate it separately only if it causes resource accumulation or affects repeated runs.
 
-`nanobind: leaked 6 instances!`
+## Follow-up investigation: primitive modifications (B–D and Run 4)
 
-The reported objects include OMPL planners, state spaces, validity checkers and problem definitions.
+### Objective
 
-This appears to be a resource/reference-management warning from the Python bindings during shutdown. It is not, by itself, evidence of an SAC training failure and does not explain the 70% success rate. It should be investigated separately if it causes resource accumulation or affects repeated runs.
+After Run 3 reached 70% evaluation success, the goal was to exceed 80%. The working hypothesis was that changes to the hierarchical primitives could improve task completion by verifying grasp retention and release, and by making placement more robust.
 
-## Visual Analysis of Policy Evolution
+Experiments B, C and D were all based on the original code at commit `5cd8bda`. They used the same SAC configuration and evaluation procedure as the baseline (A): seed 0, 100k training steps, evaluation every 5k steps on the fixed evaluation set. `train_sac.py` and `affordance.py` had no diff against `5cd8bda` between the baseline and the `hrl` implementation.
 
-The following videos show the evolution of the SAC policy at different
-training checkpoints. All checkpoints are evaluated using the same
-initial conditions whenever possible.
+### Experiment B: Reach contact verification
 
-### 25k timesteps
+Change in `youbot_pnp/rl/primitives.py`. The original Reach movement was kept, but its two movement calls were combined into one success result. If either movement failed, Reach returned `False`. If an object was held, Reach also checked that both fingers were still in contact after the placement movement:
 
-[Watch execution](media/sac/1cube/sac_025k.mp4)
+```python
+success = (
+    self.task.execute_move(q_app, held, finger_pos=fp) and
+    self.task.execute_move(q_drop, held, linear=True, finger_pos=fp)
+)
 
-**Observations:**
-- The policy has not learned a reliable pick-and-place sequence yet.
-- It frequently repeats grasp and open actions.
-- None of the five observed episodes completed the task.
+if not success:
+    return False
 
-### 50k timesteps
+if held is not None:
+    return all(finger_contacts(self.robot, held))
 
-[Watch execution](media/sac/1cube/sac_050k.mp4)
+return True
+```
 
-**Observations:**
-- The first successful execution appears.
-- The policy still shows inconsistent behaviour across episodes.
-- Only one of the five observed episodes completed the task.
+The recovery behaviour stayed as `pass`, so a failed Reach does not open the gripper and drop the object.
 
-### 75k timesteps
+**Result:** 70% final evaluation success, the same as baseline A. The saved evaluation arrays (`timesteps`, `results`, `ep_lengths`) are exactly identical to A (maximum difference 0), so this check produced no observable change in the evaluated learning trajectory.
 
-[Watch execution](media/sac/1cube/sac_075k.mp4)
+### Experiment C: Open held-object check
 
-**Observations:**
-- All five observed episodes completed the task.
-- The policy generally follows the grasp → reach → open sequence.
-- One execution recovered after an unsuccessful reach attempt.
+Change in `youbot_pnp/rl/primitives.py`. Open records whether an object was held before opening, and returns `True` only if one had been:
 
-### 100k timesteps
+```python
+def _run(self, target=None):
+    held = self.held()
+    self._open()
+    return held is not None
+```
 
-[Watch execution](media/sac/1cube/sac_100k.mp4)
+This experiment did not include storing the placement approach, a post-release retraction or a release-contact check.
 
-**Observations:**
-- Four of the five observed episodes completed the task.
-- One execution failed despite the individual primitives reporting success.
-- This suggests that successful primitive execution does not necessarily
-  imply successful task completion.
+Run directory: `runs/sac_1cube_random_s0_held_verification/`
 
-## Comparison of the three runs
+C changed the evaluation reward trajectory relative to A, with higher mean rewards at several intermediate checkpoints, but it did not improve final task success: both finished at 70%. Its `results` and `ep_lengths` arrays are not identical to A.
 
-| Metric | Run 1: state-based | Run 2: potential-based | Run 3: latest |
-|---|---:|---:|---:|
-| Training steps | 100k | 100k | 100k |
-| Evaluation success | 0% | 55% | **70%** |
-| Mean evaluation reward | 5.13 | 6.0 | **7.79** |
-| Mean episode length | 5.0 | 3.9 | **3.60** |
-| Main observation | Reward hacking | Learned grasp → reach → open | Better overall performance, but below target |
+### Experiment D: combined Reach and Open checks
 
-The comparison shows substantial progress from the initial state-based reward to the latest result. However, because the exact configuration of Run 3 has not yet been recorded, the improvement should be treated as an empirical result rather than attributed to a specific reward modification.
+D combined exactly B and C: Reach checks that both fingers remain in contact after the placement movement, and Open checks that an object was held before opening. It did not include the shared context, the stored `q_app`, the post-open retraction or the release verification of Run 4.
 
-## Recommended next steps
+Run directory: `runs/sac_1cube_random_s0_reach_held_verification/`
 
-The priority is now to understand why the task success rate remains below 80%, rather than immediately increasing the training budget.
+**Final evaluation at 100k steps (C and D gave the same values):**
 
-1. **Inspect the reward implementation.** Verify the potential calculation, progress reward, terminal reward and penalties. Check whether the agent can receive a high return without actually placing the cube.
-2. **Inspect the success condition.** Verify exactly what `_is_placed` checks: cube position, placement tolerance, release state and finger contact. Compare this with the primitive-level success metrics.
-3. **Analyse failed evaluation episodes.** Replay failed seeds with `watch_policy.py` and record the primitive sequence, cube position, target position, grasp state and final placement error. This will show whether the remaining failures are due to inaccurate placement, incorrect primitive sequencing, failed release or episode termination.
-4. **Check the episode limit.** Run 2 identified retries that ran out of steps. Confirm whether Run 3 still uses `max_steps = 5 * n_cubes`. If so, test a longer episode limit separately, while keeping the placement tolerance unchanged.
-5. **Improve reward shaping only after identifying the bottleneck.** If placement precision is still the main issue, test a sharper distance-based potential near the target. If the problem is release or task completion, improve the corresponding state representation and reward instead of increasing the reach reward indiscriminately.
-6. **Run controlled comparisons.** Keep the same evaluation seeds and deterministic evaluation procedure. Change one factor at a time and compare against the 70% baseline.
-7. **Reach and validate the >80% target.** Require the improvement to persist across several evaluations. Then repeat with additional training seeds to check that the result is reproducible.
+| Metric | Value |
+|---|---:|
+| Evaluation success | 70% (14/20) |
+| Mean evaluation reward | 7.82 ± 4.82 |
+| Mean episode length | 3.60 ± 0.92 |
+| Affordance (`aff`) | 0.917 |
+| Failure rate | 0.125 |
+| `chosen_grasp` | 0.450 |
+| `chosen_open` | 0.175 |
+| `chosen_reach` | 0.375 |
+| `success_grasp` | 0.722 |
+| `success_open` | 1.000 |
+| `success_reach` | 1.000 |
 
-What not to change:
+**Checkpoint-by-checkpoint comparison of C and D.** The `evaluations.npz` files were compared at every common checkpoint from 5,000 to 100,000 steps. Mean reward (`results.mean(axis=1)`) and mean episode length (`ep_lengths.mean(axis=1)`) are exactly equal at all 20 checkpoints; the maximum absolute difference is 0.0 for both. The table shows the checkpoints up to 90k.
 
-- **Don't raise `PLACE_TOL`.** It would make the task easier than for the FSM and break the comparison in plan step 8.
-- **Don't change several reward coefficients and SAC hyperparameters simultaneously.** That would make it difficult to identify which modification actually improves learning.
-- **Don't use training reward as a substitute for task success.** The main target remains the independently evaluated success rate.
+| Steps | Mean reward (C = D) | Mean length (C = D) |
+|---:|---:|---:|
+| 5,000 | −3.399 | 5.00 |
+| 10,000 | −2.396 | 5.00 |
+| 15,000 | −0.638 | 5.00 |
+| 20,000 | −0.217 | 5.00 |
+| 25,000 | 0.491 | 4.90 |
+| 30,000 | −0.271 | 5.00 |
+| 35,000 | 1.512 | 4.70 |
+| 40,000 | 2.098 | 4.60 |
+| 45,000 | 1.590 | 4.70 |
+| 50,000 | 3.639 | 4.35 |
+| 55,000 | 3.474 | 4.40 |
+| 60,000 | 8.240 | 3.50 |
+| 65,000 | 7.138 | 3.75 |
+| 70,000 | 9.237 | 3.30 |
+| 75,000 | 7.868 | 3.60 |
+| 80,000 | 7.342 | 3.70 |
+| 85,000 | 7.843 | 3.60 |
+| 90,000 | 8.883 | 3.40 |
+
+This shows that the aggregated mean reward and episode-length curves are identical. It does not by itself show that every individual evaluation episode in the two files is identical.
+
+**Conclusion from D:** adding Reach verification to the Open check did not change the measured mean evaluation curves or the final success relative to C. The combined isolated checks did not improve the 70% baseline.
+
+### Run 4: extended implementation and regression
+
+Run directory: `runs/sac_1cube_random_s0_1119_0731/`
+
+This implementation went beyond B and C. The runtime changes between `5cd8bda` and branch `hrl` were concentrated in `primitives.py` and the context plumbing in `env.py`.
+
+Changes included:
+
+- `Primitive.__init__` accepted an optional shared context dictionary.
+- `env.py` created `self.context`, passed it to `Grasp`, `Reach` and `Open`, and cleared it on reset.
+- Reach stored the placement approach configuration as `self.context["place_approach"]`.
+- Reach returned failure if either movement failed, and verified finger contacts when carrying an object.
+- Open checked that an object was held before opening.
+- Open retrieved the stored placement approach and executed a retraction with the gripper open.
+- Open checked that finger contact with the object had ended after opening.
+- Open's `_recover()` was overridden with `pass`, instead of using the inherited recovery that opens the gripper.
+
+The inspected `env.py` diff was limited to creating, passing and resetting the context. It showed no change to the observation space, action space, reward, affordance or termination logic. The altered physical sequence was implemented in the primitives.
+
+**Final evaluation at 100k steps:**
+
+| Metric | Value |
+|---|---:|
+| Evaluation success | 35% (7/20) |
+| Mean evaluation reward | 3.4683 |
+| Mean episode length | 4.30 |
+| Affordance (`aff`) | 0.86296 |
+| Failure rate | 0.03125 |
+| `chosen_grasp` | 0.4375 |
+| `chosen_open` | 0.375 |
+| `chosen_reach` | 0.1875 |
+| `success_grasp` | 1.000 |
+| `success_open` | 0.9167 |
+| `success_reach` | 1.000 |
+
+The learning curve stayed at 0% success through 40k steps, reached only 10% at 75k and finished at 35%, against 70% for baseline A at 100k steps. The run combined several changes (shared-context handoff, retraction after opening, release verification and a changed Open recovery), so the evidence does not identify which of them caused the regression. Attributing it to one of them would need further ablation.
+
+### Conclusion and decision
+
+| Experiment | Change | Final success | Note |
+|---|---|---:|---|
+| A | Baseline (original primitives, `5cd8bda`) | 70% | Control |
+| B | Reach contact verification | 70% | Evaluation arrays identical to A |
+| C | Open held-object check | 70% | Different intermediate trajectory, same final success |
+| D | B + C | 70% | Mean reward and length curves identical to C at all 20 checkpoints |
+| Run 4 | Extended implementation | 35% | Clear regression; cause not isolated |
+
+The hypothesis that primitive-level verification would raise SAC task success above the 70% baseline was **not supported**. The line of changes was discontinued, and these files were restored from commit `5cd8bda`:
+
+- `youbot_pnp/rl/primitives.py`
+- `youbot_pnp/rl/env.py`
+- `youbot_pnp/scripts/check_primitives.py`
+
+Keep the experiment run directories and this report so the negative result stays documented and reproducible. The rollback must not discard unrelated documentation, videos or experiment data.
+
+> **Note (added after Run 5).** B, C, D and Run 4 were all trained and evaluated with the original success predicate (`not any(finger_contacts)`) and the original task generator. Run 5 shows that this environment capped any policy at about 89–95% on 1 cube, so these results apply to that environment. They were not repeated with the fixed one.
+
+## Run 5: environment fixes, 4 environments → 100%
+
+Run directory: `runs/sac_1cube_random_fifth_evaluation` · Script: `youbot_pnp/scripts/train_sac.py` · Training steps: 100,000 · Parallel environments: 4 · Wall time: 12,233 s (about 3.4 h, 8 fps)
+
+Command:
+
+```bash
+python -m youbot_pnp.scripts.train_sac --steps 100000 --envs 4 --cubes 1 --variant random \
+    --learning-starts 5000 --utd 1 --eval-every 5000 --seed 0 --name sac_1cube_random_fifth_evaluation
+```
+
+Run 5 uses the original primitives and the same reward, affordance and SAC settings as Run 3 †. The only change is in the environment (two fixes, described below).
+
+† Confirm these were left unchanged.
+
+### Why: the oracle
+
+`youbot_pnp/scripts/check_oracle.py` plays a perfect scripted policy through `env.step()`: for each step it reads the true cube and goal positions and runs `grasp → reach → open` with exact parameters. It uses the same primitives, success predicate and episode rules as SAC, so its success rate is an **upper bound** for any learned policy. If it is below 100%, the environment limits the result, not the learning.
+
+| Tasks (1 cube, `random`) | Before the fixes | After the fixes |
+|---|---:|---:|
+| Seeds 0–99 | 89/100 (89%) | 100/100 (100%) ‡ |
+| Evaluation seeds 10000–10019 | 19/20 (95%) | 20/20 (100%) ‡ |
+
+‡ Measured on a separate copy of the repo (MuJoCo 4.0.1, Python 3.12). **TODO:** re-run `check_oracle.py` locally after the fixes and record the result.
+
+Before the fixes, the oracle failed in 11 of the 100 random tasks and in 1 of the 20 evaluation tasks. Two causes:
+
+1. **Correct placements that were not counted (10 of the 11 failures, and evaluation seed 10006).** The sequence `grasp → reach → open` succeeded and the cube ended 1–4 mm from the goal, but one finger still touched it, so `_is_placed` returned `False` (it required that *no* finger touched the cube). The oracle then tried to grasp again and either failed or ran out of steps (seeds 7, 12, 30, 48, 53, 65, 69, 87, 91, 97). Seeds 46 and 63 were affected in the same way but ended solved after a failed regrasp.
+2. **A cube that spawned out of reach (seed 55).** The cube started at (0.934, 0.448), in a far corner where the arm cannot reach the approach pose above the cube. The first grasp failed on every attempt.
+
+### Environment fixes applied before Runs 5 and 6 †
+
+| File | Change | Reason |
+|---|---|---|
+| `youbot_pnp/rl/env.py`, `_is_placed` | `not any(finger_contacts(...))` → `not all(finger_contacts(...))` | A cube counts as placed unless *both* fingers still hold it. This is the same rule `_held_cube` uses. |
+| `youbot_pnp/tasks/task_generator.py` | New `X_REACH_MAX = 0.93`; the x jitter of a start position is clamped so that x ≤ 0.93 | In a separate test, the arm reached every tested position with x ≤ 0.93, but cubes at x ≥ 0.935 in the far corners (y ≈ 0.25 or 0.45) failed for every yaw. Only the far row (x = 0.93) is affected. |
+
+† Confirm these are the changes that were applied. `primitives.py`, the reward, the affordance and the SAC settings are unchanged.
+
+The evaluation tasks change slightly because of the x clamp, and the success predicate is different. Results of Run 5 are therefore **not directly comparable** with Runs 1–4.
+
+### Final evaluation (100k steps)
+
+| Metric | Value |
+|---|---:|
+| `eval/success_rate` | **100%** (20/20) |
+| `eval/mean_reward` | 11.00 ± 0.00 |
+| `eval/mean_ep_length` | 3.00 ± 0.00 |
+| `primitives/aff` | 0.997 |
+| `primitives/success_grasp` | 1.000 |
+| `primitives/success_reach` | 1.000 |
+| `primitives/success_open` | 1.000 |
+| `primitives/failure_rate` | 0 |
+| `primitives/chosen_grasp` | 0.346 |
+| `primitives/chosen_reach` | 0.327 |
+| `primitives/chosen_open` | 0.327 |
+| `train/ent_coef` | 0.0141 |
+| `train/actor_loss` | −10.1 |
+| `train/critic_loss` | 0.0782 |
+| `train/learning_rate` | 0.0003 |
+| `train/n_updates` | 94,996 |
+
+> **Note.** All 20 evaluation episodes lasted exactly 3 steps, so if `primitives/*` covered only those episodes, each `chosen_*` value would be 0.333. The reported 0.346 / 0.327 / 0.327 suggests that the `PrimitiveStats` callback averages over recent steps, not only over the evaluation episodes. The 20 evaluation episodes give 60 primitive steps, so every fraction would be a multiple of 1/60, and 0.346 is not. Check this before quoting these values as evaluation metrics.
+
+### Behaviour near 100k steps
+
+The first five rows come from the training logs; the last row is the final evaluation. SB3 prints the episode reward rounded, so the exact value is not known.
+
+| Total timesteps | Success rate | Episode reward | Episode length | Aff | Failure rate | Critic loss |
+|---:|---:|---:|---:|---:|---:|---:|
+| 99,708 | 100% | 11 | 3 | 0.994 | 0 | 0.0499 |
+| 99,768 | 100% | 11 | 3 | 0.995 | 0 | 0.0495 |
+| 99,828 | 100% | 11 | 3 | 0.995 | 0 | 0.0439 |
+| 99,888 | 100% | 11 | 3 | 0.994 | 0 | 0.0433 |
+| 99,948 | 100% | 11 | 3 | 0.996 | 0 | 0.0354 |
+| **100,000 (evaluation)** | **100%** | **11.00** | **3.00** | **0.997** | **0** | **0.0782** |
+
+### Learning curve (eval on the 20 fixed tasks)
+
+**TODO:** fill this table with the output of the script below. Only the 100k row is known from the logs.
+
+```bash
+python youbot_pnp/scripts/export_learning_curve.py runs/<run_name> --every 5000
+```
+
+| Steps | Success | Mean reward | Mean length |
+|---:|---:|---:|---:|
+| 5,000 | TBD | TBD | TBD |
+| 10,000 | TBD | TBD | TBD |
+| 15,000 | TBD | TBD | TBD |
+| 20,000 | TBD | TBD | TBD |
+| 25,000 | TBD | TBD | TBD |
+| 30,000 | TBD | TBD | TBD |
+| 35,000 | TBD | TBD | TBD |
+| 40,000 | TBD | TBD | TBD |
+| 45,000 | TBD | TBD | TBD |
+| 50,000 | TBD | TBD | TBD |
+| 55,000 | TBD | TBD | TBD |
+| 60,000 | TBD | TBD | TBD |
+| 65,000 | TBD | TBD | TBD |
+| 70,000 | TBD | TBD | TBD |
+| 75,000 | TBD | TBD | TBD |
+| 80,000 | TBD | TBD | TBD |
+| 85,000 | TBD | TBD | TBD |
+| 90,000 | TBD | TBD | TBD |
+| 95,000 | TBD | TBD | TBD |
+| **100,000** | **100% (20/20)** | **11.00** | **3.00** |
+
+### Interpretation
+
+- **What the numbers show.** An episode reward of 11.00 corresponds to the +1 progress for the placed cube plus the +10 terminal reward, with an affordance penalty close to zero (aff ≈ 0.997). Together with episodes of exactly 3 steps and `chosen_*` ≈ 1/3 each, this is consistent with the policy running `grasp → reach → open` in every episode. Success is 100% both in the evaluation and in the last training rollouts.
+- **Comparison with Run 3.** Success rose from 70% to 100%, the mean reward from 7.79 to 11.00 and the mean length from 3.60 to 3.00. This is not a like-for-like comparison, because the environment changed.
+- **Hypotheses (not tested).** The fixes may have helped in two ways: they removed the 89–95% ceiling, and they removed a misleading reward signal. Before, a correct placement was sometimes scored as not placed, and the policy was then pushed to grasp again, which could displace the cube. A single run cannot separate these effects. An ablation would need Run 5 repeated with each fix alone.
+- **Limits of the evidence.** One training seed and 20 evaluation episodes. With 20/20 successes the 95% lower confidence bound (Wilson) is about 84%. 100/100 on new seeds would raise it to about 96%.
+
+## Run 6: environment fixes, 8 environments → 100%
+
+Run directory: *to be recorded* · Script: `youbot_pnp/scripts/train_sac.py` · Training steps: 100,000 · Parallel environments: 8 † · Wall time: 8,584 s (about 2.4 h, 11 fps)
+
+† The log below is assumed to belong to the 8-environment run (it has a higher fps and a shorter wall time than Run 5). Confirm, and record the exact command. Environment fixes, primitives, reward, affordance and the other SAC settings are as in Run 5 (4 environments), so the only intended difference is the number of parallel environments.
+
+### Final evaluation (100k steps)
+
+| Metric | Value |
+|---|---:|
+| `eval/success_rate` | **100%** (20/20) |
+| `eval/mean_reward` | 11.00 ± 0.00 |
+| `eval/mean_ep_length` | 3.00 ± 0.00 |
+| `primitives/aff` | 0.998 |
+| `primitives/success_grasp` | 1.000 |
+| `primitives/success_reach` | 1.000 |
+| `primitives/success_open` | 1.000 |
+| `primitives/failure_rate` | 0 |
+| `primitives/chosen_grasp` | 0.357 |
+| `primitives/chosen_reach` | 0.321 |
+| `primitives/chosen_open` | 0.321 |
+| `train/ent_coef` | 0.0078 |
+| `train/actor_loss` | −10.4 |
+| `train/critic_loss` | 0.0113 |
+| `train/learning_rate` | 0.0003 |
+| `train/n_updates` | 94,992 |
+
+> **Note.** As in Run 5, the `primitives/chosen_*` values cannot come from the 20 evaluation episodes: those have 60 primitive steps, and 0.357 and 0.321 are not multiples of 1/60. They are consistent with a window of recent steps (0.357 = 10/28, 0.321 = 9/28).
+
+### Last training log (99,944 steps)
+
+SB3 prints the episode reward rounded, so the exact value is not known. Only one log block was recorded for this run.
+
+| Metric | Value |
+|---|---:|
+| `rollout/success_rate` | 100% |
+| `rollout/ep_rew_mean` | 11 |
+| `rollout/ep_len_mean` | 3 |
+| `primitives/aff` | 0.997 |
+| `primitives/failure_rate` | 0 |
+| `primitives/chosen_grasp / reach / open` | 0.321 / 0.357 / 0.321 |
+| `train/ent_coef` | 0.00781 |
+| `train/critic_loss` | 0.0135 |
+| `train/n_updates` | 94,936 |
+| `time/episodes` | 26,700 |
+| `time/fps` | 11 |
+| `time/time_elapsed` | 8,584 s |
+
+## Effect of the number of parallel environments
+
+The same progression was run with 4 and with 8 parallel environments (`SubprocVecEnv`), with the same number of primitive steps (100k) and, as far as is known, the same number of gradient updates (1 per transition, about 95k updates in both).
+
+| Stage | 4 environments | 8 environments |
+|---|---:|---:|
+| Initial setup (before any change) | 0% | 0% |
+| After changing the affordance score ‡ | 70% | 55% |
+| After the environment fixes | **100%** (20/20) | **100%** (20/20) |
+| Wall time for 100k steps (after the fixes) | 12,233 s (8 fps) | 8,584 s (11 fps) |
+
+‡ **TODO: clarify what changed between the 0% runs and the 55% / 70% runs.** Run 2 above attributes the jump from 0% to 55% to the potential-based reward, while this table follows the description that the affordance score was changed. If both changed, say so here and in Run 2 so that the improvement is not attributed to a single cause. Also record the directory of the second 0% run (only `runs/sac_1cube_random_s0_1117_1910` is listed in Run 1) and the number of environments of Runs 1–3. In the table above, Run 2 (55%) is taken as the 8-environment run and Run 3 (70%) as the 4-environment run.
+
+Observations:
+
+- **With the fixed environment the number of environments does not change the final result.** Both runs reach 100% (20/20) with a mean reward of 11.00 and episodes of exactly 3 steps. 8 environments are faster: the wall time falls by about 30% (from 12,233 s to 8,584 s), which is consistent with more parallel simulation, although the machine load may also have played a part.
+- **The 70% vs 55% gap before the fixes is not conclusive.** It is 14/20 against 11/20 evaluation episodes, with one training seed per setting. The 95% (Wilson) intervals overlap (about 48–85% and 34–74%), so these runs do not show that 4 environments were better.
+- **The final entropy coefficient is lower with 8 environments** (0.0078 against 0.0141 with 4). This is only an observation; its effect has not been tested.
+
+## Comparison of the main runs
+
+| Metric | Run 1: state-based | Run 2: potential-based | Run 3: original primitives | Run 5: fixed env, 4 envs | Run 6: fixed env, 8 envs |
+|---|---:|---:|---:|---:|---:|
+| Environment | original | original | original | fixed | fixed |
+| Parallel environments § | 4 and 8 | 8 | 4 | 4 | 8 |
+| Training steps | 100k | 100k | 100k | 100k | 100k |
+| Evaluation success | 0% | 55% | 70% | **100%** (20/20) | **100%** (20/20) |
+| Mean evaluation reward | 5.13 | 6.0 | 7.79 | **11.00** | **11.00** |
+| Mean episode length | 5.0 | 3.9 | 3.60 | **3.00** | **3.00** |
+| Wall time | not recorded | not recorded | 10,893 s | 12,233 s | 8,584 s |
+| Main observation | Reward hacking | Learned grasp → reach → open | Better, below target | Ceiling of the environment removed | Same result, about 30% faster |
+
+§ The environment counts of Runs 1–3 come from the description of the 4-environment and 8-environment results (see the TODO above); confirm them. Run 1 appears with both counts because the initial 0% was obtained with 4 and with 8 environments, but only one of those runs is documented above.
+
+Run 4 (extended primitives, 35%) is documented in the follow-up investigation above. Runs 1–3 used the original environment, so comparing them with Runs 5 and 6 is only indicative.
+
+## Next steps
+
+The 1-cube target has been reached in one run. The priority is to confirm it and record it properly before moving on.
+
+1. **Record the runs.** Write down the Run 6 directory and the directory of the second 0% run, confirm which of the environment counts belongs to each run, confirm that the environment fixes and the SAC configuration are as described, re-run `check_oracle.py` locally (expected 100/100 and 20/20), and fill the learning-curve tables of Runs 5 and 6 with `export_learning_curve.py`.
+2. **Confirm beyond 20 episodes.** Evaluate `final.zip` (and `best_model.zip`) deterministically on at least 100 seeds that were not used for training. Target: 100/100, which gives a 95% lower bound of about 96%.
+3. **Repeat with other training seeds.** Train with `--seed 1` and `--seed 2` under the same configuration and report mean ± standard deviation. Keep the number of environments fixed within a comparison; 8 environments are about 30% faster.
+4. **Optional ablation.** Run the oracle with each fix alone (cheap). Retrain with each fix alone only if the report needs to say which one mattered.
+5. **Move to 4 cubes only after the oracle reaches 100% there.** With the two fixes above, the 4-cube oracle reached 53/60 (88%) on the separate copy. Replacing the `servo_to` in `_free_start` with a vertical Cartesian rise of the TCP (to avoid dragging a freshly placed cube with a finger) and re-running gave 60/60. Decide the fixed observation size and `max_steps` before training (the oracle needs 12 steps for 4 cubes, the current limit is 20).
+
+**What not to change:**
+
+- **Do not raise `PLACE_TOL`.** It would make the task easier than for the FSM and break the comparison in plan step 8.
+- **Do not change several reward coefficients and SAC hyperparameters at once.** It would be impossible to tell which change improved learning.
+- **Do not use training reward as a substitute for task success.** The target remains the independently evaluated success rate.
 
 ## Open decisions for later steps
 
-- **Fixed observation size.** `obs_dim = 9 · n_cubes + 7` changes with the number of cubes, so a 1-cube model can't continue training on 2 or 4 cubes. With fixed 4 cube slots plus an "active" flag, the curriculum in plan step 7 could reuse models. This must be decided before models are meant to carry over.
-- **MAPLE version (plan step 6).** SB3 SAC has one entropy term for all 7 action dimensions. If the primitive choice stops exploring too early again, for example on harder tasks, the separate entropy for the primitive choice in MAPLE's `PAMDPPolicy` / `SACHybridTrainer` is the structural fix.
+- **Fixed observation size.** `obs_dim = 9 · n_cubes + 7` changes with the number of cubes, so a 1-cube model cannot keep training on 2 or 4 cubes. With 4 fixed cube slots plus an "active" flag, the curriculum in plan step 7 could reuse models. Decide this before models are meant to carry over.
+- **MAPLE version (plan step 6).** SB3 SAC has one entropy term for all 7 action dimensions. If the primitive choice stops exploring too early again (for example on harder tasks), the separate entropy for the primitive choice in MAPLE's `PAMDPPolicy` / `SACHybridTrainer` is the structural fix.
 - **Buffer slots for `occupied` / `swap`.** The reach affordance currently rewards only the held cube's goal. Moves to a free buffer slot need extra reach keypoints while the goal is blocked.
 
 ## Tools
 
 | Script | Purpose |
 |---|---|
-| `youbot_pnp/scripts/train_sac.py` | Training; logs `eval/success_rate`, `primitives/*` (choice, success, aff) to TensorBoard |
+| `youbot_pnp/scripts/train_sac.py` | Training; logs `eval/success_rate` and `primitives/*` (choice, success, aff) to TensorBoard |
 | `youbot_pnp/scripts/watch_policy.py` | Replays a saved model in the viewer on the eval tasks and prints each primitive |
+| `youbot_pnp/scripts/check_oracle.py` | Scripted perfect policy through `env.step()`; upper bound for any learned policy and failure diagnosis (`--cubes`, `--seeds`, `--first-seed`) |
+| `youbot_pnp/scripts/export_learning_curve.py` | Prints the learning curve of a run as a markdown table from `evaluations.npz` |
 | `youbot_pnp/scripts/check_timing.py` | Wall time per primitive (plan step 1) |
 | `tensorboard --logdir runs` | Learning curves of all runs |
