@@ -93,13 +93,25 @@ class Reach(Primitive):
             target[:3], self.robot.get_arm_qpos(), held)
         if q_drop is None:
             return False
+
         self._lift()
         fp = FINGER_CLOSED if held else None
-        return (self.task.execute_move(q_app, held, finger_pos=fp) and
-                self.task.execute_move(q_drop, held, linear=True, finger_pos=fp))
+
+        success = (
+            self.task.execute_move(q_app, held, finger_pos=fp) and
+            self.task.execute_move(q_drop, held, linear=True, finger_pos=fp)
+        )
+
+        if not success:
+            return False
+
+        if held is not None:
+            return all(finger_contacts(self.robot, held))
+
+        return True
 
     def _recover(self):
-        pass                                   # don't open: that would drop the cube
+        pass  # don't open: that would drop the cube
 
 
 class Open(Primitive):
