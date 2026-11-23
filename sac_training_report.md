@@ -7,6 +7,7 @@ Status as of 2026-11-21. Plan step 5 ("training, quick version") in [maple_adapt
 - **Result (Runs 5 and 6).** After fixing two problems in the environment, SB3 SAC reached **100% evaluation success (20/20) after 100k steps**, both with 4 parallel environments (Run 5) and with 8 (Run 6). In both runs the mean episode reward is 11.00 and the mean episode length is 3.00 steps, and the training rollouts also showed 100% success over the last logged iterations. Before the fixes, the best results were 70% with 4 environments and 55% with 8 (Runs 3 and 2).
 - **Why the environment mattered.** A scripted oracle (`check_oracle.py`: perfect parameters, no learning) solved only 89/100 random tasks and 19/20 of the evaluation tasks before the fixes. That is an upper bound for any learned policy. Of the 11 failed oracle episodes, 10 were correct placements that the success predicate did not count because a finger still touched the cube, and 1 was a cube that spawned out of the arm's reach.
 - **Number of parallel environments.** The same progression was run with 4 and with 8 environments: 0% at the start, 70% (4) and 55% (8) after the affordance score was changed, and 100% in both after the environment fixes. With 8 environments the same 100k steps took about 30% less wall time (8,584 s instead of 12,233 s). See [Effect of the number of parallel environments](#effect-of-the-number-of-parallel-environments).
+- **How we got here.** After Run 3 (70%), the hypothesis was that primitive-level changes would close the gap to full-task success. Changing primitives and `env.py` together dropped success to 35% (Run 4). Each change was then tested on its own (B: Reach, C: Open, D: both) and all stayed at exactly the baseline's 70%, so the primitive-level checks were not what mattered. The next question was whether the environment capped what any policy can achieve, which led to the oracle and to the two environment fixes. See [How we got here](#how-we-got-here-from-primitive-changes-to-the-oracle).
 - **Primitive modifications (B, C, D, Run 4).** Reach verification (B), the Open held-object check (C) and their combination (D) all finished at 70%, and a larger combined implementation (Run 4) reached only 35%. These runs used the old environment, so their negative result applies to it. The original `primitives.py`, `env.py` and `check_primitives.py` were restored from commit `5cd8bda`.
 - **Caveats.** One training seed and 20 evaluation episodes. With 20/20 successes the 95% lower confidence bound is about 84%. Confirm with more evaluation seeds and additional training seeds before claiming a perfect result (see [Next steps](#next-steps)).
 
@@ -329,6 +330,94 @@ Keep the experiment run directories and this report so the negative result stays
 
 > **Note (added after Run 5).** B, C, D and Run 4 were all trained and evaluated with the original success predicate (`not any(finger_contacts)`) and the original task generator. Run 5 shows that this environment capped any policy at about 89–95% on 1 cube, so these results apply to that environment. They were not repeated with the fixed one.
 
+## How we got here: from primitive changes to the oracle
+
+This is the order of events that led to the environment fixes. The sections above list the experiments by type, not in time. † Confirm the order against the run timestamps.
+
+1. **Starting point (Run 3, 70%).** Primitive-level metrics were close to perfect (reach and open 100%, grasp 94.1%), but full-task success was 70%. A primitive can report success without the task being completed, so the gap had to come from somewhere other than the policy's choice of primitives.
+2. **Hypothesis.** Changes to the primitives (checking that the cube is still held after reach and that it was held before open, retracting after open) could close the gap. These changes were implemented **together with changes in `env.py`** (the shared context between primitives). This is Run 4.
+3. **Regression (Run 4, 35%).** Success dropped from 70% to 35%. Because several changes had been mixed, the cause could not be identified.
+4. **One change at a time (B, C, D).** Each change was then implemented on its own on top of the original code: Reach verification (B), Open held-object check (C) and both together (D). All three finished at **exactly 70%**, the same as the baseline (B's evaluation arrays are identical to the baseline's, and the C and D curves are identical at all 20 checkpoints).
+5. **Conclusion.** The primitive-level checks did not explain or improve the result, so the lever was elsewhere. The environment (what it decides, and how) appeared to matter much more for training than expected. Run 4's own drop is not explained by this: its cause was not isolated, because it combined several changes.
+6. **New question.** If the primitives with perfect parameters cannot reliably solve the task, no policy can reach 100% however it is trained. The tool to answer this is a perfect scripted policy: the oracle.
+7. **Result.** The oracle showed that the environment capped success at about 89–95% with 1 cube and 67% with 4 cubes. It pointed to the exact causes (see below), which were fixed in `env.py` and `task_generator.py` without touching the primitives. SAC then reached 100% with 4 and with 8 environments (Runs 5 and 6).
+
+## The oracle: `check_oracle.py`
+
+### Motivation
+
+After B, C and D, the remaining 30% could be caused by the policy (it chooses poorly) or by the environment (the task cannot always be solved, or a correct solution is not counted). The SAC logs cannot separate the two. The policy only chooses a primitive and a target. The execution of the primitive and the decision that a cube is "placed" (`_is_placed`) belong to the environment. If those fail with perfect parameters, no learned policy can do better. A perfect scripted policy is the standard control for this: an upper bound.
+
+There is a second reason. A 4-cube task needs 12 primitives (3 per cube). If each primitive succeeds with probability p, the task succeeds with about p¹²: 0.97 gives 69% and 0.99 gives 89%. Small per-primitive failures multiply.
+
+### What the script does
+
+`youbot_pnp/scripts/check_oracle.py` plays a perfect policy through `env.step()`:
+
+- It reads the true cube and goal positions from the simulator.
+- If no cube is held, it runs `grasp` on the first unplaced cube. If one is held and it is more than 2 cm from its goal, it runs `reach` to the goal. Otherwise it runs `open`.
+- It builds the action by inverting `_to_workspace`, so it goes through the same primitives, success predicate and episode rules as SAC.
+- It prints one line per seed and a summary with the number of solved tasks and the first failing primitive of each failed episode.
+
+```bash
+python youbot_pnp/scripts/check_oracle.py --cubes 1 --seeds 100
+python youbot_pnp/scripts/check_oracle.py --cubes 1 --first-seed 10000 --seeds 20   # the evaluation seeds
+python youbot_pnp/scripts/check_oracle.py --cubes 4 --seeds 60
+```
+
+Reading a line: `g+ r+ o+` is grasp, reach and open, each successful (`-` is a failed primitive). If more primitives follow a successful `g+ r+ o+`, the environment did not count the cube as placed.
+
+### Results, step by step
+
+**1 cube (`random`).**
+
+| Environment | Seeds 0–99 | Evaluation seeds 10000–10019 |
+|---|---:|---:|
+| Original | 89/100 (89%) | 19/20 (95%) |
+| `_is_placed` with `not all` (seeds 0–39 only) | 40/40 ‡ | not measured |
+| `not all` + x limit in the generator | 100/100 ‡ | 20/20 ‡ |
+
+**4 cubes (`random`).** The number of seeds differs between rows, so compare them with care.
+
+| Environment | Solved |
+|---|---:|
+| Original | 10/15 (67%) ‡ |
+| + `not all` | 24/30 (80%) ‡ |
+| + x limit in the generator | 53/60 (88%) ‡ |
+| + vertical Cartesian rise instead of the joint-space `servo_to` in `_free_start` | 60/60 (100%) ‡ |
+
+‡ Measured on a separate copy of the repo (MuJoCo 4.0.1, Python 3.12). **TODO:** repeat locally. The 4-cube fixes (the vertical rise) have **not** been applied to the training environment yet.
+
+### What it revealed
+
+1. **Correct placements that were not counted.** `_is_placed` required that no finger touched the cube. After `open`, the cube was 1–4 mm from the goal, but one finger still touched it. The oracle then tried to grasp again. In the 100 random seeds (original environment):
+
+   | Pattern | Seeds | Meaning |
+   |---|---|---|
+   | `g+ r+ o+ g- g-` | 7, 12, 48, 65, 87, 91, 97 (and evaluation seed 10006) | Placed correctly, not counted, regrasp fails |
+   | `g+ r+ o+ g+ r+` | 30, 53, 69 | Placed correctly, not counted, second cycle runs out of steps |
+   | `g+ r+ o+ g-` (solved) | 46, 63 | Same cause, but the failed regrasp opened the gripper and the cube then counted |
+   | `g- g- g- g- g-` | 55 | The cube spawned out of reach (next point) |
+
+   Fix: `not all(finger_contacts(...))`, the same rule `_held_cube` uses.
+
+2. **Cubes that spawned out of reach.** The far row (x = 0.93) had ±1 cm of jitter. In a test over positions, the arm reached every position with x ≤ 0.93, but at x ≥ 0.935 the far corners (y ≈ 0.25 and 0.45) failed for every yaw, mostly because the approach pose above the cube had no IK solution. Seed 55 spawned at (0.934, 0.448). Fix: `X_REACH_MAX = 0.93` in the task generator.
+
+3. **A finger dragging a placed cube (4 cubes).** After `open` a finger still touched the cube. `_free_start` saw that as a collision and moved the arm with a direct joint-space `servo_to`, without ignoring the cube. In two seeds the cube moved 20.1 and 20.5 mm (to x ≈ 0.947, out of reach). `execute_move(..., linear=True)` is a straight line in joint space, not a vertical rise. Fix: a vertical Cartesian rise of the TCP.
+
+### How it helped the training
+
+- It showed that the environment capped success at about 89–95% (1 cube), so Run 3's 70% was well below a ceiling that was itself not 100%.
+- It pointed to the exact code (`_is_placed`, the task generator) instead of more primitive or SAC changes.
+- It is cheap (minutes) compared with a training run (2.4–3.4 hours), so it can be run before every training to check that the ceiling is 100%.
+- After the fixes, SAC reached 100% evaluation success with 4 and with 8 environments.
+
+### Limits
+
+- The oracle uses perfect parameters. It measures the ceiling of the environment, not the quality of a policy. For example, it does not show how precise the policy's reach target is.
+- That the fixes caused SAC's improvement is very likely but not isolated. The runs have one training seed each, and the fixes were not tested one at a time.
+- Only the `random` variant with 1 and 4 cubes has been tested.
+
 ## Run 5: environment fixes, 4 environments → 100%
 
 Run directory: `runs/sac_1cube_random_fifth_evaluation` · Script: `youbot_pnp/scripts/train_sac.py` · Training steps: 100,000 · Parallel environments: 4 · Wall time: 12,233 s (about 3.4 h, 8 fps)
@@ -346,7 +435,7 @@ Run 5 uses the original primitives and the same reward, affordance and SAC setti
 
 ### Why: the oracle
 
-`youbot_pnp/scripts/check_oracle.py` plays a perfect scripted policy through `env.step()`: for each step it reads the true cube and goal positions and runs `grasp → reach → open` with exact parameters. It uses the same primitives, success predicate and episode rules as SAC, so its success rate is an **upper bound** for any learned policy. If it is below 100%, the environment limits the result, not the learning.
+The oracle (`check_oracle.py`; see [The oracle](#the-oracle-check_oraclepy)) gives the highest success that any policy could reach in this environment. On the tasks used by these runs:
 
 | Tasks (1 cube, `random`) | Before the fixes | After the fixes |
 |---|---:|---:|
@@ -537,7 +626,7 @@ The 1-cube target has been reached in one run. The priority is to confirm it and
 2. **Confirm beyond 20 episodes.** Evaluate `final.zip` (and `best_model.zip`) deterministically on at least 100 seeds that were not used for training. Target: 100/100, which gives a 95% lower bound of about 96%.
 3. **Repeat with other training seeds.** Train with `--seed 1` and `--seed 2` under the same configuration and report mean ± standard deviation. Keep the number of environments fixed within a comparison; 8 environments are about 30% faster.
 4. **Optional ablation.** Run the oracle with each fix alone (cheap). Retrain with each fix alone only if the report needs to say which one mattered.
-5. **Move to 4 cubes only after the oracle reaches 100% there.** With the two fixes above, the 4-cube oracle reached 53/60 (88%) on the separate copy. Replacing the `servo_to` in `_free_start` with a vertical Cartesian rise of the TCP (to avoid dragging a freshly placed cube with a finger) and re-running gave 60/60. Decide the fixed observation size and `max_steps` before training (the oracle needs 12 steps for 4 cubes, the current limit is 20).
+5. **Move to 4 cubes only after the oracle reaches 100% there.** With the two fixes above, the 4-cube oracle reached 53/60 (88%) on the separate copy. Replacing the `servo_to` in `_free_start` with a vertical Cartesian rise of the TCP (to avoid dragging a freshly placed cube with a finger) and re-running gave 60/60 (see [The oracle](#the-oracle-check_oraclepy)). Decide the fixed observation size and `max_steps` before training (the oracle needs 12 steps for 4 cubes, the current limit is 20).
 
 **What not to change:**
 
