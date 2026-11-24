@@ -23,9 +23,10 @@ OBS_LOW, OBS_HIGH = np.array([0.40, 0.00, 0.10]), np.array([1.00, 0.70, 0.60])  
 class YouBotPnPEnv(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, n_cubes=1, variant="random"):
+    def __init__(self, n_cubes=1, variant="random", curriculum=False):
         self.cubes = CUBES[:n_cubes]
         self.variant = variant
+        self.curriculum = curriculum
         self.max_steps = 5 * n_cubes
         self.world = World()
         robot = self.world.robot
@@ -43,10 +44,14 @@ class YouBotPnPEnv(gym.Env):
         self.observation_space = spaces.Box(-np.inf, np.inf, (obs_dim,), np.float32)
 
     def reset(self, *, seed=None, options=None):
-        # starts a new episode: generates a task, resets sim
         super().reset(seed=seed)
         task_seed = int(self.np_random.integers(2**31))
         self.cfg = generate_task(task_seed, self.variant, cubes=self.cubes)
+        if self.curriculum: # only k cubes still need to be moved
+            k = int(self.np_random.integers(1, len(self.cubes) + 1))
+            for cube in self.np_random.permutation(self.cubes)[k:]:
+                gx, gy, _ = self.cfg.goals[cube]
+                self.cfg.starts[cube] = (gx, gy, 0.0)  # starts already on its goal
         self.world.reset(self.cfg)
         self._park_unused_cubes()
         self.task.run_for(0.5)

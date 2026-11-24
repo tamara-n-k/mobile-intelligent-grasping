@@ -44,10 +44,10 @@ class FixedSeeds(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
-def make_env(n_cubes, variant, seeds=None):
+def make_env(n_cubes, variant, seeds=None, curriculum=False):
     def _init():
         ou.setLogLevel(ou.LOG_WARN)  # OMPL's C++ logger bypasses Quiet (it doesn't use Python's stdout)
-        env = Quiet(YouBotPnPEnv(n_cubes=n_cubes, variant=variant))
+        env = Quiet(YouBotPnPEnv(n_cubes=n_cubes, variant=variant, curriculum=curriculum))
         if seeds is not None:
             env = FixedSeeds(env, seeds)
         return Monitor(env)  # records episode return and length
@@ -73,6 +73,7 @@ def main():
     parser.add_argument("--steps", type=int, default=100_000, help="primitive steps, summed over all envs")
     parser.add_argument("--envs", type=int, default=4)
     parser.add_argument("--cubes", type=int, default=1)
+    parser.add_argument("--curriculum", action="store_true", help="training episodes start with 1-n cubes still to move")
     parser.add_argument("--variant", default="random")
     parser.add_argument("--learning-starts", type=int, default=5_000, help="random steps before the first update")
     parser.add_argument("--utd", type=int, default=1, help="gradient steps per collected transition")
@@ -86,7 +87,7 @@ def main():
     out = str(RUNS_DIR / run)
 
 
-    train_env = SubprocVecEnv([make_env(args.cubes, args.variant) for _ in range(args.envs)],
+    train_env = SubprocVecEnv([make_env(args.cubes, args.variant, curriculum=args.curriculum) for _ in range(args.envs)],
                               start_method="forkserver")
     eval_env = DummyVecEnv([make_env(args.cubes, args.variant, seeds=EVAL_SEEDS)])
 
