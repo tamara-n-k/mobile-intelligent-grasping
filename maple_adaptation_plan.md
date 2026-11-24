@@ -178,6 +178,54 @@ The workspace should be tuned using IK reachability checks.
 
 Yaw is wrapped to `[0, π/2)`, following `_object_yaw`, because the cube is symmetric and `arm_joint_5` cannot turn fully.
 
+### Snapping: rough parameters from the policy, exact positions from the simulator
+
+The cube positions and goals are **inputs** to the policy (the observation), not its output. The parameters are the policy's **output**, and that output is never exact:
+
+```
+simulator ──exact──▶ observation ──▶ neural network ──▶ action (parameters) ──▶ primitive
+                     (cube positions,                    (primitive choice +
+                      goals, TCP, ...)                    x, y, z, yaw)
+                      exact numbers                       the network's guess
+```
+
+1. **Observation (exact):** `_obs()` in `rl/env.py` reads cube positions, goals, TCP pose and so on from MuJoCo.
+2. **Policy (learned, approximate):** the SAC network maps the observation to 7 numbers in `[-1, 1]`: 3 for the primitive choice and 4 for x, y, z, yaw. It does not copy a cube position into its output; it has to *learn* to produce something close to it.
+3. **Action → workspace:** `_to_workspace` scales the 4 parameters to metres. The result is the `target` that the primitive receives.
+4. **Primitive (exact again):** if `target` is close enough to a meaningful point, the primitive replaces it with that point's exact position from the simulator. This is the **snap**.
+
+The policy's output is imprecise for three reasons:
+
+- **Approximation error:** a 256×256 MLP never fits the mapping exactly.
+- **Exploration noise:** during training SAC samples its action from a Gaussian around the network output, on purpose.
+- **Early training:** at the start the parameters are essentially random.
+
+The gripper, on the other hand, needs millimetre precision: it opens only 22.8 mm around an 18 mm cube, and the yaw has to match. The snap splits the work: **the policy decides *which* cube or goal and roughly *where*, and the simulator supplies the precision.**
+
+**Grasp (implemented).** `Grasp._run` takes the unplaced cube nearest to `target` in xy. If it is within `SNAP_TOL = 0.02` m, the grasp is planned to that cube's exact position and yaw. If not, the primitive returns `False` without moving.
+
+**Reach (planned, Run 9 in `sac_training_report.md`).** If a cube is held and `target` is within `REACH_SNAP = 0.03` m in xy of that cube's goal, `target` is replaced by the exact goal (z included). Otherwise `reach` goes to `target` as given. `Reach` gets the goal through a `goal_of` callback from the env (`goal_of=lambda c: self.cfg.goals[c]`), the same way it already gets `held` and `unplaced`, because `cfg` changes at every reset. `PLACE_TOL` stays at 1 cm. Without the snap, a random reach places the cube only about 0.25 % of the time; with the 3 cm snap circle, about 7 %.
+
+**Why a tolerance, and not always snap to the nearest point?** The tolerance decides *whether* the snap happens:
+
+- **The parameter keeps its meaning.** A primitive means "do X *at this location*". A grasp aimed at empty table fails, and that failure is an informative signal. If every grasp snapped, every grasp would succeed, and the policy would never learn where the cubes are.
+- **Reach must be able to go elsewhere.** In `occupied` and `swap`, a cube sometimes has to go to a free buffer slot that is *not* its goal. A reach that always snapped to the goal would make that impossible. With the tolerance, it snaps only when the policy is already aiming near the goal.
+- **Choosing the size.** A small tolerance keeps the action precise but is hard to hit by chance. A large one is easy to hit but can blur which of two neighbouring targets was meant. Slots are 6 cm apart, so 3 cm is about the largest reach tolerance that never confuses two neighbouring goals.
+
+**The affordance has to agree with the snap.** The reward contains `− λ · (1 − aff)`, and for `reach` the affordance measures the distance from `target` to the goal (`aff = 1` within `tol`, then `1 − tanh(10 · (d − tol))`). With the snap, any target inside the circle gives the same perfect placement, so the affordance must not penalise it:
+
+| Policy's target | Result with snap | aff with today's settings | Penalty |
+|---|---|---|---|
+| 2.5 cm off in xy, z on the goal | placed exactly | 0.80 | −0.20 |
+| exactly above the goal, z = 0.16 m | placed exactly (z is overwritten) | ≈ 0.17 | −0.83 |
+
+Therefore, together with the reach snap:
+
+- `env._affordance` uses `tol = 0.03` for `reach`, so every target inside the snap circle gets `aff = 1`. Outside it, the penalty grows from the circle's edge and still guides the policy towards the goal.
+- `aff_score` measures `reach` in xy only (`n = 2`), because the snap overwrites z.
+
+The snap makes a good-enough reach *succeed*, and the affordance change makes it also *score* as good. (`grasp` has the same mismatch, with a 2 cm snap and a 0.5 cm affordance tolerance. It learns anyway, so it is left unchanged for now, to change one thing at a time.)
+
 ### Why reliable primitive success signals matter for RL
 
 Primitive success is used by the environment to determine the reward and the next state of the agent.

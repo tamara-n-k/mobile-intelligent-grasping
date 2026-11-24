@@ -4,7 +4,7 @@ import numpy as np
 
 from youbot_pnp.fsm.pick_and_place_fsm import finger_contacts
 from youbot_pnp.planners.motion_planner import MotionPlanner
-from youbot_pnp.rl.primitives import Grasp, Reach, Open
+from youbot_pnp.rl.primitives import Grasp, Reach, Open, REACH_SNAP
 from youbot_pnp.robot.robot import FINGER_OPEN
 from youbot_pnp.scene.scene import CUBES, CUBE_HALF_SIZE, TABLE_TOP, CUBE_Z
 from youbot_pnp.tasks.pick_and_place import PickAndPlace
@@ -31,10 +31,11 @@ class YouBotPnPEnv(gym.Env):
         robot = self.world.robot
         self.kin = KinematicsSolver(robot)
         self.task = PickAndPlace(robot, MotionPlanner(robot), self.kin)
+        goal_of = lambda c: self.cfg.goals[c]
         self.primitives = {
-            "grasp": Grasp(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
-            "reach": Reach(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
-            "open":  Open(self.task, self.cubes, self._unplaced, self._held_cube, lift=True),
+            "grasp": Grasp(self.task, self.cubes, self._unplaced, self._held_cube, lift=True, goal_of=goal_of),
+            "reach": Reach(self.task, self.cubes, self._unplaced, self._held_cube, lift=True, goal_of=goal_of),
+            "open":  Open(self.task, self.cubes, self._unplaced, self._held_cube, lift=True, goal_of=goal_of),
         }
 
         self.action_space = spaces.Box(-1.0, 1.0, (7,), np.float32)
@@ -88,11 +89,13 @@ class YouBotPnPEnv(gym.Env):
         held = self._held_cube()
         if name == "grasp":
             keypoints = [] if held else [self.world.scene.cube_pos(c) for c in self._unplaced()]
-        elif name == "reach":
-            keypoints = [] if held is None else [self.cfg.goals[held]]
-        else:
-            return 1.0 if held else 0.0
-        return aff_score(name, target, keypoints)
+            return aff_score(name, target, keypoints)
+        if name == "reach":
+            if held is None:
+                return 0.0
+            return aff_score(name, target, [self.cfg.goals[held]], tol=REACH_SNAP)
+        return 1.0 if held else 0.0                   # open: useful only when holding a cube
+
 
     def _held_cube(self):
         for cube in self.cubes:

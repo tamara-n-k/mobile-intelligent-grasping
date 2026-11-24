@@ -9,10 +9,11 @@ Z_SAFE = 0.18  # m is lower
 REACH_SNAP = 0.03
 
 class Primitive:
-    def __init__(self, task, cubes, unplaced, held, lift=True):
+    def __init__(self, task, cubes, unplaced, held, lift=True, goal_of=None):
         self.task, self.robot = task, task.robot
         self.cubes, self.unplaced, self.held = cubes, unplaced, held
         self.lift = lift
+        self.goal_of = goal_of 
         
 
     # Exiting a collision before planning
@@ -92,6 +93,10 @@ class Grasp(Primitive):
 class Reach(Primitive):
     def _run(self, target):
         held = self.held()
+        if held is not None and self.goal_of is not None:# when we hold a cube and we know where to go
+            goal = np.asarray(self.goal_of(held), dtype=float)
+            if np.linalg.norm(goal[:2] - target[:2]) < REACH_SNAP:# check snap tolerance
+                target = goal # replace with exact goal
         q_drop, _, q_app = self.task.grasp_sampler.find_valid_placement(
             target[:3], self.robot.get_arm_qpos(), held)
         if q_drop is None:
