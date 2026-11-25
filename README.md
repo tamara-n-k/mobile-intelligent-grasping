@@ -6,7 +6,10 @@ a hand-written state machine, a policy chooses at every step which parameterized
 runs next — `grasp(x, y, z, yaw)`, `reach(x, y, z)` or `open()` — and with which parameters.
 One RL step is one whole primitive, not one physics step.
 
-<!-- TODO: GIF of the trained 1-cube policy, e.g. docs/media/sac/1 cube/sac_100k.mp4 -->
+
+
+https://github.com/user-attachments/assets/a39ced65-1e31-4e51-904d-ae723230f4c9
+
 
 ## Results so far
 
