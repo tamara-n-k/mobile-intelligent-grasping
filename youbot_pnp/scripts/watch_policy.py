@@ -11,13 +11,14 @@ from ompl import util as ou
 from stable_baselines3 import SAC
 
 from youbot_pnp.rl.env import YouBotPnPEnv
+from youbot_pnp.rl.hybrid_sac import HybridSAC
 from youbot_pnp.scene.scene import CUBE_HALF_SIZE
 from youbot_pnp.utils.viewer_utils import GOAL_ALPHA, geom_rgba, set_fixed_camera, show_goals
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("model", help="path to a .zip saved by train_sac.py")
+    parser.add_argument("model", help="path to a .zip saved by train_sac.py or a .pt saved by train_hybrid.py")
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--cubes", type=int, default=1)
     parser.add_argument("--variant", default="random")
@@ -26,7 +27,10 @@ def main():
 
     ou.setLogLevel(ou.LOG_WARN)
     env = YouBotPnPEnv(n_cubes=args.cubes, variant=args.variant)
-    model = SAC.load(args.model, device="cpu")
+    if args.model.endswith(".pt"):  # saved by train_hybrid.py; predict() has the same signature as SB3's
+        model = HybridSAC.load(args.model)
+    else:
+        model = SAC.load(args.model, device="cpu")
     m = env.world.robot.model
 
     with mujoco.viewer.launch_passive(m, env.world.robot.data) as viewer:
