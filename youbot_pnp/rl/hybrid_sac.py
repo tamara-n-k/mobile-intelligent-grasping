@@ -92,10 +92,11 @@ class ReplayBuffer:
 
 class HybridSAC:
     def __init__(self, obs_dim, lr=3e-4, gamma=0.99, tau=0.005, batch_size=256, buffer_size=300_000,
-                 hidden=(256, 256), high_ent_steps=50_000, one_hot_factor=0.5, seed=0):
+                 hidden=(256, 256), high_ent_steps=50_000, one_hot_factor=0.5, reward_scale=1.0, seed=0):
         torch.manual_seed(seed)
         np.random.seed(seed)
         self.obs_dim, self.gamma, self.tau, self.batch_size = obs_dim, gamma, tau, batch_size
+        self.reward_scale = reward_scale
         self.hidden = hidden
 
         self.policy = HybridPolicy(obs_dim, hidden)
@@ -161,7 +162,7 @@ class HybridSAC:
         with torch.no_grad():
             p2, lp2, lpx2, q2_next = self._expected(b["next_obs"], (self.q1_targ, self.q2_targ))
             v_next = (p2 * (q2_next - alpha_s * lp2 - alpha_p * lpx2)).sum(-1)
-            y = b["rew"] + self.gamma * (1 - b["done"]) * v_next
+            y = self.reward_scale * b["rew"] + self.gamma * (1 - b["done"]) * v_next
         q1_pred, q2_pred = self.q1(b["obs"], b["act"]), self.q2(b["obs"], b["act"])
         q_loss = F.mse_loss(q1_pred, y) + F.mse_loss(q2_pred, y)
         self.q_opt.zero_grad()
