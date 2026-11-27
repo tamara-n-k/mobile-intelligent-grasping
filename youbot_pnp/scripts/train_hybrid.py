@@ -53,6 +53,8 @@ def main():
     parser.add_argument("--one-hot-factor", type=float, default=0.5,
                         help="primitive target entropy after that, as a fraction of log 3")
     parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--tau", type=float, default=0.005, help="target network update rate (MAPLE: 1e-3)")
+    parser.add_argument("--reward-scale", type=float, default=1.0, help="task reward scale in the critic target (MAPLE: 5)")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--eval-every", type=int, default=5_000, help="primitive steps between evaluations")
     parser.add_argument("--seed", type=int, default=0)
@@ -71,8 +73,9 @@ def main():
     eval_env = make_env(args.cubes, args.variant, seeds=EVAL_SEEDS)()
     obs = envs.reset()
 
-    agent = HybridSAC(obs.shape[1], lr=args.lr, batch_size=args.batch_size, high_ent_steps=args.high_ent_steps,
-                      one_hot_factor=args.one_hot_factor, seed=args.seed)
+    agent = HybridSAC(obs.shape[1], lr=args.lr, tau=args.tau, batch_size=args.batch_size,
+                      high_ent_steps=args.high_ent_steps, one_hot_factor=args.one_hot_factor,
+                      reward_scale=args.reward_scale, seed=args.seed)
     writer = SummaryWriter(str(out / "tb"))
 
     ep_returns, ep_lengths, ep_success = (collections.deque(maxlen=100) for _ in range(3))
